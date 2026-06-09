@@ -1,21 +1,19 @@
-const swaggerJsdoc = require('swagger-jsdoc');
+const swaggerJsDoc = require('swagger-jsdoc');
 const swaggerUi = require('swagger-ui-express');
 
 const options = {
     definition: {
         openapi: '3.0.0',
         info: {
-            title: 'CRM AI API',
+            title: 'CRM AI Platform API',
             version: '1.0.0',
-            description: 'CRM + Employee Operations API'
+            description: 'CRM AI Backend APIs'
         },
-
         servers: [
             {
-                url: 'http://localhost:5000/api'
+                url: 'http://localhost:5001'
             }
         ],
-
         components: {
             securitySchemes: {
                 bearerAuth: {
@@ -24,21 +22,14 @@ const options = {
                     bearerFormat: 'JWT'
                 }
             }
-        },
-
-        security: [
-            {
-                bearerAuth: []
-            }
-        ]
+        }
     },
-
     apis: ['./src/modules/**/*.routes.js']
 };
 
-const specs = swaggerJsdoc(options);
+const swaggerSpec = swaggerJsDoc(options);
 
 module.exports = {
     swaggerUi,
-    specs
+    swaggerSpec
 };
