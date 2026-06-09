@@ -1,8 +1,8 @@
 require('./config/env');
 const app = require('./app');
 const connectDB = require('./config/database');
-const createDefaultRole = require('./seeds/defaultRole.js');
-const createDefaultAdmin = require('./seeds/defaultAdmin.js');
+const createDefaultRole = require('./seeders/roleSeeder.js');
+const createDefaultAdmin = require('./seeders/superAdminSeeder.js');
 const PORT = process.env.PORT || 5000;
 
 const startServer = async () => {

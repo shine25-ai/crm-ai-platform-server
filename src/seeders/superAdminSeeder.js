@@ -1,5 +1,5 @@
 const bcrypt = require('bcryptjs');
-const User = require('../models/User');
+const User = require('../modules/users/user.model');
 
 const createDefaultAdmin = async () => {
     try {
