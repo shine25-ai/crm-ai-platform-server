@@ -11,11 +11,7 @@ app.use(cors());
 app.use(helmet());
 app.use(morgan('dev'));
 
-app.use(
-    '/api-docs',
-    swaggerUi.serve,
-    swaggerUi.setup(specs)
-);
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(specs));
 
 app.get('/', (req, res) => {
     res.json({

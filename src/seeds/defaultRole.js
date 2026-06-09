@@ -1,7 +1,6 @@
 const Role = require('../models/Role');
 
 const roleSeeder = async () => {
-
     const roles = [
         {
             roleCode: 'SUPER_ADMIN',
@@ -23,7 +22,6 @@ const roleSeeder = async () => {
     ];
 
     for (const role of roles) {
-
         const exists = await Role.findOne({
             roleCode: role.roleCode
         });

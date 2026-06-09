@@ -15,9 +15,11 @@ const roleSchema = new mongoose.Schema(
 
         description: String,
 
-        permissions: [{
-            type: String
-        }],
+        permissions: [
+            {
+                type: String
+            }
+        ],
 
         isSystemRole: {
             type: Boolean,
@@ -31,6 +33,7 @@ const roleSchema = new mongoose.Schema(
     },
     {
         timestamps: true
-    });
+    }
+);
 
 module.exports = mongoose.model('Role', roleSchema);
