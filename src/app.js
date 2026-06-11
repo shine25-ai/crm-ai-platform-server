@@ -6,6 +6,11 @@ const { swaggerUi, swaggerSpec } = require('./config/swagger');
 const errorMiddleware = require('./shared/middleware/error.middleware');
 
 const authRoutes = require('./modules/auth/auth.routes');
+const roleRoutes = require('./modules/roles/role.routes');
+const userRoutes = require('./modules/users/user.routes');
+const departmentRoutes = require('./modules/departments/department.routes');
+const employeeRoutes = require('./modules/employees/employee.routes');
+const permissionRoutes = require('./modules/permissions/permission.routes');
 
 const app = express();
 
@@ -17,6 +22,11 @@ app.use(morgan('dev'));
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
 app.use('/api/auth', authRoutes);
+app.use('/api/roles', roleRoutes);
+app.use('/api/users', userRoutes);
+app.use('/api/departments', departmentRoutes);
+app.use('/api/employees', employeeRoutes);
+app.use('/api/permissions', permissionRoutes);
 
 app.get('/', (req, res) => {
     res.json({

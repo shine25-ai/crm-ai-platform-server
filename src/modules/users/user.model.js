@@ -14,6 +14,8 @@ const userSchema = new mongoose.Schema(
             ref: 'Role',
             required: true
         },
+        mobile: String,
+        department: String,
         status: {
             type: String,
             default: 'ACTIVE'
