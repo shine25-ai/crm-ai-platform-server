@@ -3,7 +3,7 @@ const app = require('./app');
 const connectDB = require('./config/database');
 const createDefaultRole = require('./seeders/roleSeeder.js');
 const createDefaultAdmin = require('./seeders/superAdminSeeder.js');
-const seedDepartmentsAndEmployees = require('./seeders/departmentAndEmployeeSeeder.js');
+// const seedDepartmentsAndEmployees = require('./seeders/departmentAndEmployeeSeeder.js');
 const PORT = process.env.PORT || 5000;
 
 const startServer = async () => {
