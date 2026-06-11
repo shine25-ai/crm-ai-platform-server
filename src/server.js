@@ -1,6 +1,8 @@
 require('./config/env');
+const http = require('http');
 const app = require('./app');
 const connectDB = require('./config/database');
+const { initSocket } = require('./config/socket');
 const createDefaultRole = require('./seeders/roleSeeder.js');
 const createDefaultAdmin = require('./seeders/superAdminSeeder.js');
 // const seedDepartmentsAndEmployees = require('./seeders/departmentAndEmployeeSeeder.js');
@@ -16,8 +18,11 @@ const startServer = async () => {
         await createDefaultAdmin();
         // await seedDepartmentsAndEmployees();
 
-        // Start Express Server
-        app.listen(PORT, () => {
+        // Create HTTP Server & attach Socket.io
+        const server = http.createServer(app);
+        initSocket(server);
+
+        server.listen(PORT, () => {
             console.log(`🚀 Server running on port ${PORT}`);
         });
     } catch (error) {

@@ -125,6 +125,10 @@ const resendOnboardingEmail = async (id) => {
         throw new AppError('Employee has already completed onboarding', 400);
     }
 
+    if (!employee.email) {
+        throw new AppError('Employee does not have an email address', 400);
+    }
+
     // Refresh token
     const onboardingToken = crypto.randomBytes(32).toString('hex');
     const onboardingTokenExpires = new Date(Date.now() + 48 * 60 * 60 * 1000);
