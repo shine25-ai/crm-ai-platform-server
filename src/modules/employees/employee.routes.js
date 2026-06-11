@@ -91,6 +91,7 @@ router.use(authMiddleware);
  */
 router.get('/', employeeController.getEmployees);
 router.post('/', employeeController.createEmployee);
+router.get('/:id', employeeController.getEmployee);
 
 /**
  * @swagger
@@ -162,5 +163,30 @@ router.post('/', employeeController.createEmployee);
  */
 router.put('/:id', employeeController.updateEmployee);
 router.delete('/:id', employeeController.deleteEmployee);
+
+/**
+ * @swagger
+ * /api/employees/{id}/resend-onboarding:
+ *   post:
+ *     summary: Resend onboarding invitation email to a pending employee
+ *     tags: [Employees]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: The employee MongoDB ID
+ *     responses:
+ *       200:
+ *         description: Onboarding invitation email resent successfully
+ *       400:
+ *         description: Employee has already completed onboarding
+ *       404:
+ *         description: Employee not found
+ */
+router.post('/:id/resend-onboarding', employeeController.resendOnboarding);
 
 module.exports = router;

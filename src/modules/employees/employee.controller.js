@@ -14,12 +14,25 @@ const getEmployees = async (req, res, next) => {
     }
 };
 
+const getEmployee = async (req, res, next) => {
+    try {
+        const employee = await employeeService.getEmployeeById(req.params.id);
+        return ApiResponse.success(
+            res,
+            'Employee retrieved successfully',
+            employee
+        );
+    } catch (error) {
+        next(error);
+    }
+};
+
 const createEmployee = async (req, res, next) => {
     try {
         const employee = await employeeService.createEmployee(req.body);
         return ApiResponse.success(
             res,
-            'Employee created successfully',
+            'Employee created successfully. Onboarding email sent.',
             employee,
             201
         );
@@ -53,9 +66,23 @@ const deleteEmployee = async (req, res, next) => {
     }
 };
 
+const resendOnboarding = async (req, res, next) => {
+    try {
+        await employeeService.resendOnboardingEmail(req.params.id);
+        return ApiResponse.success(
+            res,
+            'Onboarding invitation email resent successfully'
+        );
+    } catch (error) {
+        next(error);
+    }
+};
+
 module.exports = {
     getEmployees,
+    getEmployee,
     createEmployee,
     updateEmployee,
-    deleteEmployee
+    deleteEmployee,
+    resendOnboarding
 };

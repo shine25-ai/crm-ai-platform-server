@@ -18,6 +18,17 @@ const roleSeeder = async () => {
                 'employee.update',
                 'employee.delete'
             ]
+        },
+        {
+            roleCode: 'EMPLOYEE',
+            roleName: 'Employee',
+            isSystemRole: true,
+            description: 'Standard employee — access to employee portal only',
+            permissions: [
+                'employee.view.self',
+                'attendance.view.self',
+                'profile.update.self'
+            ]
         }
     ];
 

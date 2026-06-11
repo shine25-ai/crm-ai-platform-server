@@ -5,11 +5,19 @@ const departmentSchema = new mongoose.Schema(
         departmentName: {
             type: String,
             required: true,
-            unique: true
+            unique: true,
+            trim: true
         },
-        departmentHead: {
+        description: {
             type: String,
-            required: true
+            default: ''
+        },
+        // ObjectId ref to Employee — nullable to break the circular dependency
+        // A department can be created first without a head, then assigned later
+        departmentHead: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'Employee',
+            default: null
         },
         employeeCount: {
             type: Number,

@@ -14,6 +14,12 @@ const userSchema = new mongoose.Schema(
             ref: 'Role',
             required: true
         },
+        // Link to Employee record (set during onboarding, null for admin users)
+        employeeId: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'Employee',
+            default: null
+        },
         mobile: String,
         department: String,
         status: {

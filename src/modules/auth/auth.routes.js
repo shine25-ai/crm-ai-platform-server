@@ -117,4 +117,75 @@ router.post('/forgot-password', authController.forgotPassword);
  */
 router.post('/reset-password', authController.resetPassword);
 
+/**
+ * @swagger
+ * /api/auth/verify-onboarding:
+ *   get:
+ *     summary: Verify an employee onboarding token
+ *     tags: [Authentication]
+ *     security: []
+ *     parameters:
+ *       - in: query
+ *         name: token
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: The secure onboarding token from the email link
+ *     responses:
+ *       200:
+ *         description: Token valid — returns employee preview (name, email, department)
+ *       400:
+ *         description: Token invalid or expired
+ */
+router.get('/verify-onboarding', authController.verifyOnboarding);
+
+/**
+ * @swagger
+ * /api/auth/complete-onboarding:
+ *   post:
+ *     summary: Complete employee onboarding — sets password and personal info
+ *     tags: [Authentication]
+ *     security: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - token
+ *               - password
+ *             properties:
+ *               token:
+ *                 type: string
+ *                 description: The secure onboarding token
+ *               password:
+ *                 type: string
+ *                 example: MySecure@123
+ *               personalInfo:
+ *                 type: object
+ *                 properties:
+ *                   dob:
+ *                     type: string
+ *                     example: 1995-06-15
+ *                   gender:
+ *                     type: string
+ *                     example: Male
+ *                   address:
+ *                     type: string
+ *                     example: 12 MG Road, Chennai
+ *                   bloodGroup:
+ *                     type: string
+ *                     example: O+
+ *                   emergencyContact:
+ *                     type: string
+ *                     example: "+91 98765 43210"
+ *     responses:
+ *       200:
+ *         description: Onboarding complete — user account created
+ *       400:
+ *         description: Invalid token, expired, or already completed
+ */
+router.post('/complete-onboarding', authController.completeOnboarding);
+
 module.exports = router;

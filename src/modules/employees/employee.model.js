@@ -28,19 +28,32 @@ const employeeSchema = new mongoose.Schema(
         },
         name: {
             type: String,
-            required: true
+            required: true,
+            trim: true
         },
-        department: {
+        email: {
             type: String,
+            required: true,
+            unique: true,
+            lowercase: true,
+            trim: true
+        },
+        // ObjectId ref to Department
+        department: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'Department',
             required: true
         },
         designation: {
             type: String,
-            required: true
+            required: true,
+            trim: true
         },
+        // Self-referential ObjectId ref — optional (nullable)
         manager: {
-            type: String,
-            default: 'None'
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'Employee',
+            default: null
         },
         mobile: {
             type: String,
@@ -51,11 +64,32 @@ const employeeSchema = new mongoose.Schema(
             enum: ['Active', 'Inactive'],
             default: 'Active'
         },
+        // Link to User account once onboarding is complete
+        userId: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'User',
+            default: null
+        },
+        // Onboarding fields
+        onboardingStatus: {
+            type: String,
+            enum: ['Pending', 'Completed'],
+            default: 'Pending'
+        },
+        onboardingToken: {
+            type: String,
+            default: null
+        },
+        onboardingTokenExpires: {
+            type: Date,
+            default: null
+        },
         personalInfo: {
             dob: String,
             gender: String,
             address: String,
-            bloodGroup: String
+            bloodGroup: String,
+            emergencyContact: String
         },
         employmentInfo: {
             joinDate: String,
