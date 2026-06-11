@@ -47,7 +47,13 @@
   "devDependencies": {
     "esbuild": "^0.28.0",
     "husky": "^9.1.7",
+    "lint-staged": "^15.2.2",
     "nodemon": "^3.1.14",
     "prettier": "^3.8.3"
+  },
+  "lint-staged": {
+    "src/**/*.js": [
+      "prettier --write"
+    ]
   }
 }

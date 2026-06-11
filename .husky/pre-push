@@ -1,2 +1,6 @@
-npm run format
-# npm test (Note: test script starts a server currently)
+#!/usr/bin/env sh
+echo "🏗️ Checking build..."
+npm run build
+
+echo "🎨 Checking format..."
+npm run format:check
