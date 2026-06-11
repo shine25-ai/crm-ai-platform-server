@@ -22,11 +22,33 @@ const logout = async (req, res, next) => {
 };
 
 const forgotPassword = async (req, res, next) => {
-    res.json({ message: 'Forgot Password endpoint' });
+    try {
+        const { email } = req.body;
+
+        await authService.forgotPassword(email);
+
+        return ApiResponse.success(
+            res,
+            'Password reset link sent to your email.'
+        );
+    } catch (error) {
+        next(error);
+    }
 };
 
 const resetPassword = async (req, res, next) => {
-    res.json({ message: 'Reset Password endpoint' });
+    try {
+        const { token, password } = req.body;
+
+        await authService.resetPassword(token, password);
+
+        return ApiResponse.success(
+            res,
+            'Password reset successful. You can now login with your new password.'
+        );
+    } catch (error) {
+        next(error);
+    }
 };
 
 module.exports = {
