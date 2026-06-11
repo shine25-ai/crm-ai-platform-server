@@ -72,12 +72,10 @@ const completeOnboarding = async (req, res, next) => {
     try {
         const { token, password, personalInfo } = req.body;
         if (!token || !password) {
-            return res
-                .status(400)
-                .json({
-                    success: false,
-                    message: 'Token and password are required'
-                });
+            return res.status(400).json({
+                success: false,
+                message: 'Token and password are required'
+            });
         }
         const result = await authService.completeOnboarding(
             token,
