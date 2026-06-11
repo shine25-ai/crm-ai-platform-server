@@ -3,7 +3,7 @@ const app = require('./app');
 const connectDB = require('./config/database');
 const createDefaultRole = require('./seeders/roleSeeder.js');
 const createDefaultAdmin = require('./seeders/superAdminSeeder.js');
-const seedPermissions = require('./seeders/permissionSeeder.js');
+const seedDepartmentsAndEmployees = require('./seeders/departmentAndEmployeeSeeder.js');
 const PORT = process.env.PORT || 5000;
 
 const startServer = async () => {
@@ -11,10 +11,10 @@ const startServer = async () => {
         // Connect MongoDB First
         await connectDB();
 
-        // Seed permissions, roles, and default admin
-        await seedPermissions();
+        // Create default role and admin
         await createDefaultRole();
         await createDefaultAdmin();
+        // await seedDepartmentsAndEmployees();
 
         // Start Express Server
         app.listen(PORT, () => {
