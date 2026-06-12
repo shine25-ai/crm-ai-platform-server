@@ -1,8 +1,23 @@
 const crypto = require('crypto');
 const Employee = require('./employee.model');
 const Department = require('../departments/department.model');
+const User = require('../users/user.model');
 const AppError = require('../../shared/utils/appError');
 const emailService = require('../../shared/services/email.service');
+
+const hasRequiredHrData = (employee) =>
+    Boolean(
+        employee.employmentInfo?.joinDate &&
+        employee.employmentInfo?.salary &&
+        employee.onboardingStatus === 'Completed'
+    );
+
+const syncEmployeeUserStatus = async (employee) => {
+    if (!employee.userId) return;
+    await User.findByIdAndUpdate(employee.userId, {
+        status: employee.status
+    });
+};
 
 /**
  * Recount active employees per department and update employeeCount.
@@ -82,7 +97,8 @@ const createEmployee = async (empData) => {
         ...empData,
         onboardingToken,
         onboardingTokenExpires,
-        onboardingStatus: 'Pending'
+        onboardingStatus: 'Pending',
+        status: 'Inactive'
     });
 
     // Build onboarding URL and send email (non-blocking — don't fail creation on email error)
@@ -171,8 +187,43 @@ const updateEmployee = async (id, empData) => {
         empData.manager = null;
     }
 
-    Object.assign(employee, empData);
+    const requestedStatus = empData.status;
+    const nextData = {
+        ...employee.toObject(),
+        ...empData,
+        employmentInfo: {
+            ...(employee.employmentInfo?.toObject
+                ? employee.employmentInfo.toObject()
+                : employee.employmentInfo || {}),
+            ...(empData.employmentInfo || {})
+        }
+    };
+
+    if (requestedStatus === 'Active' && !hasRequiredHrData(nextData)) {
+        throw new AppError(
+            'HR joining date and salary are required before activating this employee.',
+            400
+        );
+    }
+
+    Object.assign(employee, {
+        ...empData,
+        employmentInfo: nextData.employmentInfo
+    });
+
+    if (employee.status !== 'Active' && hasRequiredHrData(employee)) {
+        employee.status = 'Active';
+    }
+
+    if (employee.status === 'Active' && !hasRequiredHrData(employee)) {
+        throw new AppError(
+            'Active employees must have completed onboarding, joining date, and salary.',
+            400
+        );
+    }
+
     await employee.save();
+    await syncEmployeeUserStatus(employee);
     await updateDepartmentCounts();
 
     return await Employee.findById(employee._id)

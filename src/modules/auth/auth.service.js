@@ -36,6 +36,13 @@ const login = async (email, password) => {
         throw new AppError('Invalid credentials', 401);
     }
 
+    if (user.status === 'Inactive' || user.status === 'INACTIVE') {
+        throw new AppError(
+            'Your account setup is complete and pending HR activation.',
+            403
+        );
+    }
+
     const token = generateToken({
         userId: user._id,
         roleId: user.roleId._id,
@@ -136,7 +143,12 @@ const verifyOnboardingToken = async (token) => {
  * 3. Update Employee record — link User, mark Completed, save personalInfo
  * 4. Clear onboarding token
  */
-const completeOnboarding = async (token, password, personalInfo) => {
+const completeOnboarding = async (
+    token,
+    password,
+    personalInfo,
+    bankDetails
+) => {
     const employee = await Employee.findOne({
         onboardingToken: token,
         onboardingTokenExpires: { $gt: new Date() }
@@ -179,7 +191,7 @@ const completeOnboarding = async (token, password, personalInfo) => {
         employeeId: employee._id,
         mobile: employee.mobile,
         department: employee.department?.departmentName || '',
-        status: 'ACTIVE'
+        status: 'Inactive'
     });
 
     // Update employee record
@@ -196,10 +208,25 @@ const completeOnboarding = async (token, password, personalInfo) => {
         };
     }
 
+    if (bankDetails) {
+        employee.bankDetails = {
+            ...employee.bankDetails,
+            ...bankDetails
+        };
+    }
+
+    const hasHrActivationData = Boolean(
+        employee.employmentInfo?.joinDate && employee.employmentInfo?.salary
+    );
+    employee.status = hasHrActivationData ? 'Active' : 'Inactive';
+    user.status = employee.status;
+    await user.save();
+
     await employee.save();
 
     return {
-        message: 'Account setup complete! You can now login.',
+        message:
+            'Account setup complete. Your access will be activated after HR completes joining details.',
         email: employee.email
     };
 };

@@ -70,7 +70,7 @@ const verifyOnboarding = async (req, res, next) => {
  */
 const completeOnboarding = async (req, res, next) => {
     try {
-        const { token, password, personalInfo } = req.body;
+        const { token, password, personalInfo, bankDetails } = req.body;
         if (!token || !password) {
             return res.status(400).json({
                 success: false,
@@ -80,7 +80,8 @@ const completeOnboarding = async (req, res, next) => {
         const result = await authService.completeOnboarding(
             token,
             password,
-            personalInfo
+            personalInfo,
+            bankDetails
         );
         return ApiResponse.success(res, result.message, result);
     } catch (error) {
