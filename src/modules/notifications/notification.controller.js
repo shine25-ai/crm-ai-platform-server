@@ -31,7 +31,21 @@ const markNotificationAsRead = async (req, res, next) => {
     }
 };
 
+const markAllNotificationsAsRead = async (req, res, next) => {
+    try {
+        const result = await notificationService.markAllAsRead(req.user.userId);
+        return ApiResponse.success(
+            res,
+            'All notifications marked as read successfully',
+            result
+        );
+    } catch (error) {
+        next(error);
+    }
+};
+
 module.exports = {
     getNotifications,
-    markNotificationAsRead
+    markNotificationAsRead,
+    markAllNotificationsAsRead
 };

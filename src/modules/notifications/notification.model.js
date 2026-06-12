@@ -23,7 +23,12 @@ const notificationSchema = new mongoose.Schema(
                 'Role Assigned',
                 'Invitation Sent',
                 'Password Changed',
-                'System Alert'
+                'System Alert',
+                'Task Assigned',
+                'Task Completed',
+                'Attendance Missing',
+                'Approval Request',
+                'Meeting Reminder'
             ],
             required: true
         },
