@@ -84,12 +84,22 @@ const employeeSchema = new mongoose.Schema(
             type: Date,
             default: null
         },
+        profilePhoto: {
+            type: String,
+            default: ''
+        },
         personalInfo: {
             dob: String,
             gender: String,
             address: String,
+            permanentAddress: String,
             bloodGroup: String,
             emergencyContact: String
+        },
+        bankDetails: {
+            bankName: { type: String, default: '' },
+            accountNumber: { type: String, default: '' },
+            IFSCCode: { type: String, default: '' }
         },
         employmentInfo: {
             joinDate: String,
@@ -97,6 +107,7 @@ const employeeSchema = new mongoose.Schema(
             salary: String,
             workLocation: String
         },
+
         attendance: [attendanceSchema],
         performance: {
             kpiScore: {

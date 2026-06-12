@@ -1,6 +1,9 @@
 const Role = require('./role.model');
 const User = require('../users/user.model');
 const AppError = require('../../shared/utils/appError');
+const RolePermission = require('../permissions/rolePermission.model');
+const Permission = require('../permissions/permission.model');
+const mongoose = require('mongoose');
 
 const getAllRoles = async () => {
     const roles = await Role.find({});
@@ -39,6 +42,31 @@ const createRole = async (roleData) => {
         permissions: permissions || [],
         status: 'Active'
     });
+
+    if (permissions && permissions.length > 0) {
+        const validObjectIds = permissions.filter((p) =>
+            mongoose.Types.ObjectId.isValid(p)
+        );
+        const resolvedPermissions = await Permission.find({
+            $or: [
+                { _id: { $in: validObjectIds } },
+                { permissionCode: { $in: permissions } }
+            ]
+        });
+
+        const rolePermissions = resolvedPermissions.map((p) => ({
+            roleId: role._id,
+            permissionId: p._id
+        }));
+
+        if (rolePermissions.length > 0) {
+            await RolePermission.insertMany(rolePermissions);
+        }
+
+        role.permissions = resolvedPermissions.map((p) => p.permissionCode);
+        await role.save();
+    }
+
     return role;
 };
 
@@ -54,8 +82,32 @@ const updateRole = async (id, roleData) => {
     }
     if (roleData.description !== undefined)
         role.description = roleData.description;
-    if (roleData.permissions !== undefined)
-        role.permissions = roleData.permissions;
+
+    if (roleData.permissions !== undefined) {
+        const validObjectIds = roleData.permissions.filter((p) =>
+            mongoose.Types.ObjectId.isValid(p)
+        );
+        const resolvedPermissions = await Permission.find({
+            $or: [
+                { _id: { $in: validObjectIds } },
+                { permissionCode: { $in: roleData.permissions } }
+            ]
+        });
+
+        await RolePermission.deleteMany({ roleId: id });
+
+        const rolePermissions = resolvedPermissions.map((p) => ({
+            roleId: id,
+            permissionId: p._id
+        }));
+
+        if (rolePermissions.length > 0) {
+            await RolePermission.insertMany(rolePermissions);
+        }
+
+        role.permissions = resolvedPermissions.map((p) => p.permissionCode);
+    }
+
     if (roleData.status !== undefined) role.status = roleData.status;
 
     await role.save();

@@ -87,7 +87,7 @@ const createEmployee = async (empData) => {
 
     // Build onboarding URL and send email (non-blocking — don't fail creation on email error)
     const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5174';
-    const onboardingUrl = `${frontendUrl}/onboarding?token=${onboardingToken}`;
+    const onboardingUrl = `${frontendUrl}/onboarding/${onboardingToken}`;
 
     try {
         await emailService.sendOnboardingEmail(
@@ -138,7 +138,7 @@ const resendOnboardingEmail = async (id) => {
     await employee.save();
 
     const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5174';
-    const onboardingUrl = `${frontendUrl}/onboarding?token=${onboardingToken}`;
+    const onboardingUrl = `${frontendUrl}/onboarding/${onboardingToken}`;
 
     await emailService.sendOnboardingEmail(
         employee.email,
