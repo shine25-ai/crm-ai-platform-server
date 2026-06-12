@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const permissionController = require('./permission.controller');
 const authMiddleware = require('../../shared/middleware/auth.middleware');
+const authorize = require('../../shared/middleware/permission.middleware');
 
 router.use(authMiddleware);
 
@@ -59,8 +60,16 @@ router.use(authMiddleware);
  *       201:
  *         description: Permission created successfully
  */
-router.get('/', permissionController.getPermissions);
-router.post('/', permissionController.createPermission);
+router.get(
+    '/',
+    authorize('permissions:read'),
+    permissionController.getPermissions
+);
+router.post(
+    '/',
+    authorize('permissions:write'),
+    permissionController.createPermission
+);
 
 /**
  * @swagger
@@ -135,8 +144,20 @@ router.post('/', permissionController.createPermission);
  *       404:
  *         description: Permission not found
  */
-router.get('/:id', permissionController.getPermissionById);
-router.put('/:id', permissionController.updatePermission);
-router.delete('/:id', permissionController.deletePermission);
+router.get(
+    '/:id',
+    authorize('permissions:read'),
+    permissionController.getPermissionById
+);
+router.put(
+    '/:id',
+    authorize('permissions:write'),
+    permissionController.updatePermission
+);
+router.delete(
+    '/:id',
+    authorize('permissions:delete'),
+    permissionController.deletePermission
+);
 
 module.exports = router;

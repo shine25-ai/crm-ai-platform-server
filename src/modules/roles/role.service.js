@@ -5,6 +5,12 @@ const RolePermission = require('../permissions/rolePermission.model');
 const Permission = require('../permissions/permission.model');
 const mongoose = require('mongoose');
 
+const normalizeStatus = (status) => {
+    if (status === 'ACTIVE') return 'Active';
+    if (status === 'INACTIVE') return 'Inactive';
+    return status || 'Active';
+};
+
 const getAllRoles = async () => {
     const roles = await Role.find({});
 
@@ -21,6 +27,7 @@ const getAllRoles = async () => {
 
     return roles.map((role) => {
         const roleObj = role.toObject();
+        roleObj.status = normalizeStatus(roleObj.status);
         roleObj.usersCount = countMap[role._id.toString()] || 0;
         return roleObj;
     });
@@ -108,7 +115,8 @@ const updateRole = async (id, roleData) => {
         role.permissions = resolvedPermissions.map((p) => p.permissionCode);
     }
 
-    if (roleData.status !== undefined) role.status = roleData.status;
+    if (roleData.status !== undefined)
+        role.status = normalizeStatus(roleData.status);
 
     await role.save();
     return role;
@@ -122,6 +130,14 @@ const deleteRole = async (id) => {
     if (role.isSystemRole) {
         throw new AppError('Cannot delete system role', 400);
     }
+    const assignedUsers = await User.countDocuments({ roleId: id });
+    if (assignedUsers > 0) {
+        throw new AppError(
+            `Cannot delete role: ${assignedUsers} user(s) are assigned to it.`,
+            400
+        );
+    }
+    await RolePermission.deleteMany({ roleId: id });
     await Role.findByIdAndDelete(id);
     return true;
 };

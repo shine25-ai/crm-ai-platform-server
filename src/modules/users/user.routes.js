@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const userController = require('./user.controller');
 const authMiddleware = require('../../shared/middleware/auth.middleware');
+const authorize = require('../../shared/middleware/permission.middleware');
 
 router.use(authMiddleware);
 
@@ -57,8 +58,8 @@ router.use(authMiddleware);
  *       201:
  *         description: User created successfully
  */
-router.get('/', userController.getUsers);
-router.post('/', userController.createUser);
+router.get('/', authorize('users:read'), userController.getUsers);
+router.post('/', authorize('users:write'), userController.createUser);
 
 /**
  * @swagger
@@ -114,8 +115,8 @@ router.post('/', userController.createUser);
  *       200:
  *         description: User deleted successfully
  */
-router.put('/:id', userController.updateUser);
-router.delete('/:id', userController.deleteUser);
+router.put('/:id', authorize('users:write'), userController.updateUser);
+router.delete('/:id', authorize('users:delete'), userController.deleteUser);
 
 /**
  * @swagger
@@ -136,6 +137,10 @@ router.delete('/:id', userController.deleteUser);
  *       200:
  *         description: Password reset email sent successfully
  */
-router.post('/:id/reset-password', userController.resetPassword);
+router.post(
+    '/:id/reset-password',
+    authorize('users:write'),
+    userController.resetPassword
+);
 
 module.exports = router;

@@ -13,21 +13,34 @@ const roleSeeder = async () => {
             roleName: 'Admin',
             isSystemRole: true,
             permissions: [
-                'employee.view',
-                'employee.create',
-                'employee.update',
-                'employee.delete'
+                'dashboard:view',
+                'permissions:read',
+                'users:read',
+                'users:write',
+                'roles:read',
+                'departments:read',
+                'departments:write',
+                'employees:read',
+                'employees:write',
+                'leads:read',
+                'leads:write',
+                'customers:read',
+                'campaigns:read',
+                'tasks:read',
+                'attendance:read',
+                'settings:read'
             ]
         },
         {
             roleCode: 'EMPLOYEE',
             roleName: 'Employee',
             isSystemRole: true,
-            description: 'Standard employee — access to employee portal only',
+            description: 'Standard employee access to employee portal only',
             permissions: [
-                'employee.view.self',
-                'attendance.view.self',
-                'profile.update.self'
+                'dashboard:view',
+                'employees:read',
+                'attendance:read',
+                'settings:read'
             ]
         }
     ];
@@ -38,8 +51,16 @@ const roleSeeder = async () => {
         });
 
         if (!exists) {
-            await Role.create(role);
+            await Role.create({ ...role, status: 'Active' });
             console.log(`${role.roleName} created`);
+        } else {
+            exists.roleName = role.roleName;
+            exists.isSystemRole = role.isSystemRole;
+            exists.permissions = role.permissions;
+            exists.status =
+                exists.status === 'Inactive' ? 'Inactive' : 'Active';
+            if (role.description) exists.description = role.description;
+            await exists.save();
         }
     }
 };

@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const departmentController = require('./department.controller');
 const authMiddleware = require('../../shared/middleware/auth.middleware');
+const authorize = require('../../shared/middleware/permission.middleware');
 
 router.use(authMiddleware);
 
@@ -48,8 +49,16 @@ router.use(authMiddleware);
  *       201:
  *         description: Department created successfully
  */
-router.get('/', departmentController.getDepartments);
-router.post('/', departmentController.createDepartment);
+router.get(
+    '/',
+    authorize('departments:read'),
+    departmentController.getDepartments
+);
+router.post(
+    '/',
+    authorize('departments:write'),
+    departmentController.createDepartment
+);
 
 /**
  * @swagger
@@ -101,7 +110,15 @@ router.post('/', departmentController.createDepartment);
  *       200:
  *         description: Department deleted successfully
  */
-router.put('/:id', departmentController.updateDepartment);
-router.delete('/:id', departmentController.deleteDepartment);
+router.put(
+    '/:id',
+    authorize('departments:write'),
+    departmentController.updateDepartment
+);
+router.delete(
+    '/:id',
+    authorize('departments:delete'),
+    departmentController.deleteDepartment
+);
 
 module.exports = router;
