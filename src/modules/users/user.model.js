@@ -24,7 +24,8 @@ const userSchema = new mongoose.Schema(
         department: String,
         status: {
             type: String,
-            default: 'ACTIVE'
+            enum: ['Active', 'Inactive'],
+            default: 'Active'
         },
         resetPasswordToken: {
             type: String,

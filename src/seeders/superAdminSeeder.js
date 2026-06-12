@@ -41,7 +41,7 @@ const createDefaultAdmin = async () => {
             email: process.env.DEFAULT_ADMIN_EMAIL,
             password: hashedPassword,
             roleId: superAdminRole._id,
-            status: 'ACTIVE'
+            status: 'Active'
         });
 
         console.log('✅ Default admin created successfully');

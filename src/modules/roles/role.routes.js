@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const roleController = require('./role.controller');
 const authMiddleware = require('../../shared/middleware/auth.middleware');
+const authorize = require('../../shared/middleware/permission.middleware');
 
 router.use(authMiddleware);
 
@@ -47,8 +48,8 @@ router.use(authMiddleware);
  *       201:
  *         description: Role created successfully
  */
-router.get('/', roleController.getRoles);
-router.post('/', roleController.createRole);
+router.get('/', authorize('roles:read'), roleController.getRoles);
+router.post('/', authorize('roles:write'), roleController.createRole);
 
 /**
  * @swagger
@@ -100,7 +101,7 @@ router.post('/', roleController.createRole);
  *       200:
  *         description: Role deleted successfully
  */
-router.put('/:id', roleController.updateRole);
-router.delete('/:id', roleController.deleteRole);
+router.put('/:id', authorize('roles:write'), roleController.updateRole);
+router.delete('/:id', authorize('roles:delete'), roleController.deleteRole);
 
 module.exports = router;

@@ -3,10 +3,26 @@ const crypto = require('crypto');
 
 const User = require('../users/user.model');
 const Role = require('../roles/role.model');
+const RolePermission = require('../permissions/rolePermission.model');
 const Employee = require('../employees/employee.model');
 const AppError = require('../../shared/utils/appError');
 const { generateToken } = require('../../shared/utils/jwt');
 const emailService = require('../../shared/services/email.service');
+
+const getRolePermissions = async (role) => {
+    if (!role) return [];
+    if ((role.permissions || []).includes('*')) return ['*'];
+
+    const mappings = await RolePermission.find({ roleId: role._id }).populate(
+        'permissionId',
+        'permissionCode'
+    );
+    const mappedPermissions = mappings
+        .map((mapping) => mapping.permissionId?.permissionCode)
+        .filter(Boolean);
+
+    return [...new Set([...(role.permissions || []), ...mappedPermissions])];
+};
 
 const login = async (email, password) => {
     const user = await User.findOne({ email }).populate('roleId');
@@ -27,6 +43,8 @@ const login = async (email, password) => {
         employeeId: user.employeeId || null
     });
 
+    const permissions = await getRolePermissions(user.roleId);
+
     return {
         token,
         user: {
@@ -35,7 +53,7 @@ const login = async (email, password) => {
             email: user.email,
             roleCode: user.roleId.roleCode,
             roleName: user.roleId.roleName,
-            permissions: user.roleId.permissions || [],
+            permissions,
             employeeId: user.employeeId || null
         }
     };

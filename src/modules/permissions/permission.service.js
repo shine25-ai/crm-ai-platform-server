@@ -1,4 +1,6 @@
 const Permission = require('./permission.model');
+const Role = require('../roles/role.model');
+const RolePermission = require('./rolePermission.model');
 const AppError = require('../../shared/utils/appError');
 
 const getAllPermissions = async () => {
@@ -58,6 +60,18 @@ const deletePermission = async (id) => {
     const permission = await Permission.findById(id);
     if (!permission) {
         throw new AppError('Permission not found', 404);
+    }
+    const assignedMappings = await RolePermission.countDocuments({
+        permissionId: id
+    });
+    const assignedRoles = await Role.countDocuments({
+        permissions: permission.permissionCode
+    });
+    if (assignedMappings > 0 || assignedRoles > 0) {
+        throw new AppError(
+            'Cannot delete permission while it is assigned to one or more roles.',
+            400
+        );
     }
     await Permission.findByIdAndDelete(id);
     return true;

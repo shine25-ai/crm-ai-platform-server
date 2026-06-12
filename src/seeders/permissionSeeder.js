@@ -26,6 +26,21 @@ const seedPermissions = async () => {
                 module: 'Users'
             },
             {
+                permissionCode: 'permissions:read',
+                permissionName: 'Read Permissions',
+                module: 'Permissions'
+            },
+            {
+                permissionCode: 'permissions:write',
+                permissionName: 'Write Permissions',
+                module: 'Permissions'
+            },
+            {
+                permissionCode: 'permissions:delete',
+                permissionName: 'Delete Permissions',
+                module: 'Permissions'
+            },
+            {
                 permissionCode: 'roles:read',
                 permissionName: 'Read Roles',
                 module: 'Roles'
@@ -151,6 +166,8 @@ const seedPermissions = async () => {
                 permissionId: p._id
             }));
             await RolePermission.insertMany(superAdminMappings);
+            superAdminRole.permissions = ['*'];
+            await superAdminRole.save();
             console.log('✅ Super Admin RolePermissions seeded');
         }
 
@@ -158,6 +175,7 @@ const seedPermissions = async () => {
             await RolePermission.deleteMany({ roleId: adminRole._id });
             const adminPermCodes = [
                 'dashboard:view',
+                'permissions:read',
                 'users:read',
                 'users:write',
                 'roles:read',
@@ -180,6 +198,8 @@ const seedPermissions = async () => {
                     permissionId: p._id
                 }));
             await RolePermission.insertMany(adminMappings);
+            adminRole.permissions = adminPermCodes;
+            await adminRole.save();
             console.log('✅ Admin RolePermissions seeded');
         }
 
@@ -198,6 +218,8 @@ const seedPermissions = async () => {
                     permissionId: p._id
                 }));
             await RolePermission.insertMany(employeeMappings);
+            employeeRole.permissions = employeePermCodes;
+            await employeeRole.save();
             console.log('✅ Employee RolePermissions seeded');
         }
     } catch (error) {

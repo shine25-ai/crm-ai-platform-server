@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const employeeController = require('./employee.controller');
 const authMiddleware = require('../../shared/middleware/auth.middleware');
+const authorize = require('../../shared/middleware/permission.middleware');
 
 router.use(authMiddleware);
 
@@ -89,9 +90,13 @@ router.use(authMiddleware);
  *       201:
  *         description: Employee created successfully
  */
-router.get('/', employeeController.getEmployees);
-router.post('/', employeeController.createEmployee);
-router.get('/:id', employeeController.getEmployee);
+router.get('/', authorize('employees:read'), employeeController.getEmployees);
+router.post(
+    '/',
+    authorize('employees:write'),
+    employeeController.createEmployee
+);
+router.get('/:id', authorize('employees:read'), employeeController.getEmployee);
 
 /**
  * @swagger
@@ -161,8 +166,16 @@ router.get('/:id', employeeController.getEmployee);
  *       200:
  *         description: Employee deleted successfully
  */
-router.put('/:id', employeeController.updateEmployee);
-router.delete('/:id', employeeController.deleteEmployee);
+router.put(
+    '/:id',
+    authorize('employees:write'),
+    employeeController.updateEmployee
+);
+router.delete(
+    '/:id',
+    authorize('employees:delete'),
+    employeeController.deleteEmployee
+);
 
 /**
  * @swagger
@@ -187,6 +200,10 @@ router.delete('/:id', employeeController.deleteEmployee);
  *       404:
  *         description: Employee not found
  */
-router.post('/:id/resend-onboarding', employeeController.resendOnboarding);
+router.post(
+    '/:id/resend-onboarding',
+    authorize('employees:write'),
+    employeeController.resendOnboarding
+);
 
 module.exports = router;

@@ -4,9 +4,16 @@ const bcrypt = require('bcryptjs');
 const AppError = require('../../shared/utils/appError');
 const authService = require('../auth/auth.service');
 
+const normalizeStatus = (status) => {
+    if (status === 'ACTIVE') return 'Active';
+    if (status === 'INACTIVE') return 'Inactive';
+    return status || 'Active';
+};
+
 const mapUserRole = (user) => {
     if (!user) return user;
     const userObj = user.toObject ? user.toObject() : user;
+    userObj.status = normalizeStatus(userObj.status);
     if (userObj.roleId && userObj.roleId.roleName) {
         userObj.role = userObj.roleId.roleName;
     }
@@ -86,7 +93,8 @@ const updateUser = async (id, userData) => {
     if (userData.mobile !== undefined) user.mobile = userData.mobile;
     if (userData.department !== undefined)
         user.department = userData.department;
-    if (userData.status !== undefined) user.status = userData.status;
+    if (userData.status !== undefined)
+        user.status = normalizeStatus(userData.status);
 
     await user.save();
     const populatedUser = await User.findById(id).populate('roleId');
