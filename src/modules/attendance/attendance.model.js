@@ -7,28 +7,51 @@ const attendanceSchema = new mongoose.Schema(
             ref: 'Employee',
             required: true
         },
-        date: {
-            type: String, // YYYY-MM-DD
+        shiftDate: {
+            type: String,
             required: true
         },
         checkIn: {
-            type: String, // HH:MM AM/PM
+            type: Date,
             required: true
         },
         checkOut: {
-            type: String, // HH:MM AM/PM
+            type: Date,
             default: null
         },
-        status: {
+        workingHours: {
+            type: Number,
+            default: 0
+        },
+        breakHours: {
+            type: Number,
+            default: 0
+        },
+        location: {
+            latitude: Number,
+            longitude: Number,
+            address: String,
+            validated: { type: Boolean, default: false }
+        },
+        attendanceStatus: {
             type: String,
-            enum: ['Present', 'Absent', 'On Leave'],
+            enum: ['Present', 'Absent', 'On Leave', 'Half Day', 'Late'],
             default: 'Present'
+        },
+        breaks: {
+            type: [
+                {
+                    start: Date,
+                    end: Date,
+                    durationHours: { type: Number, default: 0 }
+                }
+            ],
+            default: []
         }
     },
     { timestamps: true }
 );
 
-// Index for search performance (multiple entries per day allowed)
-attendanceSchema.index({ employeeId: 1, date: 1 });
+attendanceSchema.index({ employeeId: 1, shiftDate: 1 });
 
 module.exports = mongoose.model('Attendance', attendanceSchema);

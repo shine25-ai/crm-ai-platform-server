@@ -48,5 +48,6 @@ router.get('/', notificationController.getNotifications);
  *         description: Notification not found
  */
 router.patch('/read/:id', notificationController.markNotificationAsRead);
+router.patch('/read-all', notificationController.markAllNotificationsAsRead);
 
 module.exports = router;

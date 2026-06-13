@@ -30,8 +30,16 @@ const markAsRead = async (id) => {
     return notification;
 };
 
+const markAllAsRead = async (userId) => {
+    return await Notification.updateMany(
+        { userId, isRead: false },
+        { $set: { isRead: true } }
+    );
+};
+
 module.exports = {
     createNotification,
     getUserNotifications,
-    markAsRead
+    markAsRead,
+    markAllAsRead
 };

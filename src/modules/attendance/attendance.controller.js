@@ -47,17 +47,20 @@ const checkIn = async (req, res, next) => {
                 message: 'Could not resolve a valid Employee profile or User ID'
             });
         }
-        const { date, checkInTime } = req.body;
-        if (!date || !checkInTime) {
+        const { date, shiftDate, checkInTime, location } = req.body;
+        const attendanceDate = shiftDate || date;
+        if (!attendanceDate) {
             return res.status(400).json({
                 success: false,
-                message: 'Missing required fields: date, checkInTime'
+                message: 'Missing required field: shiftDate'
             });
         }
         const record = await attendanceService.checkIn(
             employeeId,
-            date,
-            checkInTime
+            attendanceDate,
+            checkInTime,
+            location,
+            req.user.userId
         );
         return ApiResponse.success(res, 'Checked in successfully', record, 201);
     } catch (error) {
@@ -77,19 +80,40 @@ const checkOut = async (req, res, next) => {
                 message: 'Could not resolve a valid Employee profile or User ID'
             });
         }
-        const { date, checkOutTime } = req.body;
-        if (!date || !checkOutTime) {
-            return res.status(400).json({
-                success: false,
-                message: 'Missing required fields: date, checkOutTime'
-            });
-        }
+        const { date, shiftDate, checkOutTime } = req.body;
         const record = await attendanceService.checkOut(
             employeeId,
-            date,
-            checkOutTime
+            shiftDate || date,
+            checkOutTime,
+            req.user.userId
         );
         return ApiResponse.success(res, 'Checked out successfully', record);
+    } catch (error) {
+        next(error);
+    }
+};
+
+const breakStart = async (req, res, next) => {
+    try {
+        const employeeId = await resolveEmployeeId(req);
+        const record = await attendanceService.breakStart(
+            employeeId,
+            req.user.userId
+        );
+        return ApiResponse.success(res, 'Break started successfully', record);
+    } catch (error) {
+        next(error);
+    }
+};
+
+const breakEnd = async (req, res, next) => {
+    try {
+        const employeeId = await resolveEmployeeId(req);
+        const record = await attendanceService.breakEnd(
+            employeeId,
+            req.user.userId
+        );
+        return ApiResponse.success(res, 'Break ended successfully', record);
     } catch (error) {
         next(error);
     }
@@ -118,8 +142,29 @@ const getMyLogs = async (req, res, next) => {
     }
 };
 
+const getMonthlyReport = async (req, res, next) => {
+    try {
+        const employeeId = await resolveEmployeeId(req);
+        const report = await attendanceService.getMonthlyReport(
+            employeeId,
+            req.query.month,
+            req.query.year
+        );
+        return ApiResponse.success(
+            res,
+            'Monthly attendance report retrieved successfully',
+            report
+        );
+    } catch (error) {
+        next(error);
+    }
+};
+
 module.exports = {
     checkIn,
     checkOut,
-    getMyLogs
+    breakStart,
+    breakEnd,
+    getMyLogs,
+    getMonthlyReport
 };

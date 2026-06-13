@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const attendanceController = require('./attendance.controller');
 const authMiddleware = require('../../shared/middleware/auth.middleware');
+const authorize = require('../../shared/middleware/permission.middleware');
 
 // Protect all attendance routes
 router.use(authMiddleware);
@@ -45,7 +46,11 @@ router.use(authMiddleware);
  *       400:
  *         description: Already checked in or missing required fields
  */
-router.post('/check-in', attendanceController.checkIn);
+router.post(
+    '/check-in',
+    authorize('attendance:write', 'attendance:read'),
+    attendanceController.checkIn
+);
 
 /**
  * @swagger
@@ -79,7 +84,21 @@ router.post('/check-in', attendanceController.checkIn);
  *       400:
  *         description: No active session found or missing required fields
  */
-router.post('/check-out', attendanceController.checkOut);
+router.post(
+    '/check-out',
+    authorize('attendance:write', 'attendance:read'),
+    attendanceController.checkOut
+);
+router.post(
+    '/break-start',
+    authorize('attendance:write', 'attendance:read'),
+    attendanceController.breakStart
+);
+router.post(
+    '/break-end',
+    authorize('attendance:write', 'attendance:read'),
+    attendanceController.breakEnd
+);
 
 /**
  * @swagger
@@ -95,6 +114,20 @@ router.post('/check-out', attendanceController.checkOut);
  *       400:
  *         description: Could not resolve a valid Employee profile
  */
-router.get('/my-logs', attendanceController.getMyLogs);
+router.get(
+    '/my-logs',
+    authorize('attendance:read'),
+    attendanceController.getMyLogs
+);
+router.get(
+    '/history',
+    authorize('attendance:read'),
+    attendanceController.getMyLogs
+);
+router.get(
+    '/monthly-report',
+    authorize('attendance:read'),
+    attendanceController.getMonthlyReport
+);
 
 module.exports = router;
