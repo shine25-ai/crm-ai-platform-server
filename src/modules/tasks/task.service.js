@@ -1,4 +1,5 @@
 const Task = require('./task.model');
+const Role = require('../roles/role.model');
 const AppError = require('../../shared/utils/appError');
 const notificationService = require('../notifications/notification.service');
 const { logActivity } = require('../../shared/services/audit.service');
@@ -7,6 +8,24 @@ const populateTask = (query) =>
     query
         .populate('assignedBy', 'name email')
         .populate('assignedTo', 'name email');
+
+const canManageAllTasks = async (user) => {
+    const role = await Role.findById(user.roleId);
+    const permissions = role?.permissions || [];
+    return (
+        permissions.includes('*') ||
+        ['SUPER_ADMIN', 'ADMIN', 'HR'].includes(role?.roleCode)
+    );
+};
+
+const assertTaskAccess = async (task, user) => {
+    if (await canManageAllTasks(user)) return;
+    const userId = String(user.userId);
+    const ownsTask =
+        String(task.assignedTo) === userId ||
+        String(task.assignedBy) === userId;
+    if (!ownsTask) throw new AppError('Forbidden', 403);
+};
 
 const listTasks = async (user, filters = {}) => {
     const query = {};
@@ -23,11 +42,12 @@ const listTasks = async (user, filters = {}) => {
 };
 
 const createTask = async (data, user) => {
+    const canAssignOthers = await canManageAllTasks(user);
     const task = await Task.create({
         title: data.title,
         description: data.description || '',
         assignedBy: user.userId,
-        assignedTo: data.assignedTo,
+        assignedTo: canAssignOthers ? data.assignedTo : user.userId,
         priority: data.priority || 'Medium',
         dueDate: data.dueDate,
         progress: data.progress || 0,
@@ -36,7 +56,7 @@ const createTask = async (data, user) => {
     });
 
     await notificationService.createNotification(
-        data.assignedTo,
+        task.assignedTo,
         'Task assigned',
         `${data.title} has been assigned to you.`,
         'Task Assigned'
@@ -54,6 +74,7 @@ const createTask = async (data, user) => {
 const updateTask = async (id, data, user) => {
     const task = await Task.findById(id);
     if (!task) throw new AppError('Task not found', 404);
+    await assertTaskAccess(task, user);
 
     const editable = [
         'title',
@@ -98,6 +119,7 @@ const updateTask = async (id, data, user) => {
 const deleteTask = async (id, user) => {
     const task = await Task.findById(id);
     if (!task) throw new AppError('Task not found', 404);
+    await assertTaskAccess(task, user);
     await Task.findByIdAndDelete(id);
     await logActivity(
         user.userId,

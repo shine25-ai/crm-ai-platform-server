@@ -13,6 +13,10 @@ router.put(
     authorize('tasks:write', 'tasks:read'),
     taskController.updateTask
 );
-router.delete('/:id', authorize('tasks:delete'), taskController.deleteTask);
+router.delete(
+    '/:id',
+    authorize('tasks:delete', 'tasks:write'),
+    taskController.deleteTask
+);
 
 module.exports = router;

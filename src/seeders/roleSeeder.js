@@ -68,6 +68,7 @@ const roleSeeder = async () => {
                 'dashboard:view',
                 'employees:read',
                 'tasks:read',
+                'tasks:write',
                 'attendance:read',
                 'attendance:write',
                 'notifications:read',
