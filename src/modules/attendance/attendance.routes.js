@@ -122,7 +122,7 @@ router.get(
 router.get(
     '/history',
     authorize('attendance:read'),
-    attendanceController.getMyLogs
+    attendanceController.getHistory
 );
 router.get(
     '/monthly-report',
