@@ -11,6 +11,7 @@ const emailService = require('../../shared/services/email.service');
 
 const getRolePermissions = async (role) => {
     if (!role) return [];
+    if (role.roleCode === 'SUPER_ADMIN') return ['*'];
     if ((role.permissions || []).includes('*')) return ['*'];
 
     const mappings = await RolePermission.find({ roleId: role._id }).populate(
