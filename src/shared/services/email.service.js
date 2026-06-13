@@ -1,23 +1,49 @@
 const nodemailer = require('nodemailer');
 const logger = require('../utils/logger');
 
-// Create an SMTP transporter using env values or defaults
-const transporter = nodemailer.createTransport({
-    host: process.env.SMTP_HOST || 'smtp.gmail.com',
-    port: parseInt(process.env.SMTP_PORT || '587', 10),
-    secure: false,
-    auth: {
-        user: process.env.SMTP_USER || 'farm2bag@gmail.com',
-        pass: process.env.SMTP_PASS || 'wwhp meoz gngx sysz'
+const getSmtpConfig = () => {
+    const port = parseInt(process.env.SMTP_PORT || '587', 10);
+    return {
+        host: process.env.SMTP_HOST || 'smtp.gmail.com',
+        port,
+        secure: port === 465,
+        auth: {
+            user: process.env.SMTP_USER,
+            pass: process.env.SMTP_PASS
+        }
+    };
+};
+
+const createTransporter = () => nodemailer.createTransport(getSmtpConfig());
+
+const getSender = () =>
+    `"CRM AI Platform" <${process.env.SMTP_FROM || process.env.SMTP_USER}>`;
+
+const assertSmtpConfig = () => {
+    const missing = ['SMTP_HOST', 'SMTP_PORT', 'SMTP_USER', 'SMTP_PASS'].filter(
+        (key) => !process.env[key]
+    );
+
+    if (missing.length) {
+        throw new Error(`Missing SMTP configuration: ${missing.join(', ')}`);
     }
-});
+};
+
+const verifySmtpConnection = async () => {
+    assertSmtpConfig();
+    const transporter = createTransporter();
+    await transporter.verify();
+    return true;
+};
 
 /**
  * Sends a password reset email
  */
 const sendPasswordResetEmail = async (email, resetUrl) => {
+    assertSmtpConfig();
+
     const mailOptions = {
-        from: `"CRM AI Platform" <${process.env.SMTP_USER || 'farm2bag@gmail.com'}>`,
+        from: getSender(),
         to: email,
         subject: 'Reset Your Password - CRM AI Platform',
         html: `
@@ -38,11 +64,12 @@ const sendPasswordResetEmail = async (email, resetUrl) => {
     };
 
     try {
+        const transporter = createTransporter();
         const info = await transporter.sendMail(mailOptions);
         logger.info(
             `[Email Service] Password reset email sent to ${email}. Message ID: ${info.messageId}`
         );
-        return true;
+        return info;
     } catch (error) {
         logger.error(
             `[Email Service] Failed to send email to ${email}:`,
@@ -67,10 +94,11 @@ const sendOnboardingEmail = async (
     department,
     onboardingUrl
 ) => {
+    assertSmtpConfig();
     const firstName = name.split(' ')[0];
 
     const mailOptions = {
-        from: `"CRM AI Platform" <${process.env.SMTP_USER || 'farm2bag@gmail.com'}>`,
+        from: getSender(),
         to: email,
         subject: `Welcome to the Team, ${firstName}! Complete Your Account Setup`,
         html: `
@@ -190,11 +218,12 @@ const sendOnboardingEmail = async (
     };
 
     try {
+        const transporter = createTransporter();
         const info = await transporter.sendMail(mailOptions);
         logger.info(
             `[Email Service] Onboarding email sent to ${email}. Message ID: ${info.messageId}`
         );
-        return true;
+        return info;
     } catch (error) {
         logger.error(
             `[Email Service] Failed to send onboarding email to ${email}:`,
@@ -206,5 +235,6 @@ const sendOnboardingEmail = async (
 
 module.exports = {
     sendPasswordResetEmail,
-    sendOnboardingEmail
+    sendOnboardingEmail,
+    verifySmtpConnection
 };
