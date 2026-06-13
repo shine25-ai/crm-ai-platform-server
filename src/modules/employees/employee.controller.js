@@ -44,7 +44,8 @@ const createEmployee = async (req, res, next) => {
             req.user.userId,
             'CREATE_EMPLOYEE',
             'Employees',
-            `Created employee ${employee.name}`
+            `Created employee ${employee.name}`,
+            req
         );
         await logAudit(
             req.user.userId,
@@ -98,7 +99,8 @@ const updateEmployee = async (req, res, next) => {
             req.user.userId,
             'UPDATE_EMPLOYEE',
             'Employees',
-            `Updated employee ${employee.name}`
+            `Updated employee ${employee.name}`,
+            req
         );
         await logAudit(
             req.user.userId,
@@ -141,7 +143,8 @@ const deleteEmployee = async (req, res, next) => {
             req.user.userId,
             'DELETE_EMPLOYEE',
             'Employees',
-            `Deleted employee ${oldData?.name || req.params.id}`
+            `Deleted employee ${oldData?.name || req.params.id}`,
+            req
         );
         await logAudit(
             req.user.userId,
