@@ -33,8 +33,7 @@ const listTasks = async (user, filters = {}) => {
     if (filters.priority) query.priority = filters.priority;
     if (filters.assignedTo) query.assignedTo = filters.assignedTo;
 
-    const permissions = user.permissions || [];
-    if (!permissions.includes('*') && !permissions.includes('tasks:write')) {
+    if (!(await canManageAllTasks(user))) {
         query.$or = [{ assignedTo: user.userId }, { assignedBy: user.userId }];
     }
 

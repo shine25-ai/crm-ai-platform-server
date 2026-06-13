@@ -2,468 +2,191 @@ const Permission = require('../modules/permissions/permission.model');
 const Role = require('../modules/roles/role.model');
 const RolePermission = require('../modules/permissions/rolePermission.model');
 
+const permissionCatalog = [
+    ['dashboard:view', 'View Dashboard', 'Dashboard'],
+    ['users:read', 'Read Users', 'Users'],
+    ['users:write', 'Write Users', 'Users'],
+    ['users:delete', 'Delete Users', 'Users'],
+    ['permissions:read', 'Read Permissions', 'Permissions'],
+    ['permissions:write', 'Write Permissions', 'Permissions'],
+    ['permissions:delete', 'Delete Permissions', 'Permissions'],
+    ['roles:read', 'Read Roles', 'Roles'],
+    ['roles:write', 'Write Roles', 'Roles'],
+    ['roles:delete', 'Delete Roles', 'Roles'],
+    ['departments:read', 'Read Departments', 'Departments'],
+    ['departments:write', 'Write Departments', 'Departments'],
+    ['departments:delete', 'Delete Departments', 'Departments'],
+    ['employees:read', 'Read Employees', 'Employees'],
+    ['employees:write', 'Write Employees', 'Employees'],
+    ['employees:delete', 'Delete Employees', 'Employees'],
+    ['leads:read', 'Read Leads', 'Leads'],
+    ['leads:write', 'Write Leads', 'Leads'],
+    ['leads:delete', 'Delete Leads', 'Leads'],
+    ['customers:read', 'Read Customers', 'Customers'],
+    ['campaigns:read', 'Read Campaigns', 'Campaigns'],
+    ['tasks:read', 'Read Tasks', 'Tasks'],
+    ['tasks:write', 'Write Tasks', 'Tasks'],
+    ['tasks:delete', 'Delete Tasks', 'Tasks'],
+    ['attendance:read', 'Read Attendance', 'Attendance'],
+    ['attendance:write', 'Write Attendance', 'Attendance'],
+    ['notifications:read', 'Read Notifications', 'Notifications'],
+    ['notifications:write', 'Write Notifications', 'Notifications'],
+    ['chat:read', 'Read Chat', 'Chat'],
+    ['chat:write', 'Write Chat', 'Chat'],
+    ['approvals:read', 'Read Approvals', 'Approvals'],
+    ['approvals:write', 'Write Approvals', 'Approvals'],
+    ['calendar:read', 'Read Calendar', 'Calendar'],
+    ['calendar:write', 'Write Calendar', 'Calendar'],
+    ['calendar:delete', 'Delete Calendar', 'Calendar'],
+    ['activity:read', 'Read Activity Logs', 'Activity'],
+    ['gps:read', 'Read GPS Tracking', 'GPS Tracking'],
+    ['reports:read', 'Read Reports', 'Reports'],
+    ['settings:read', 'Read Settings', 'Settings']
+];
+
+const rolePermissions = {
+    ADMIN: [
+        'dashboard:view',
+        'permissions:read',
+        'users:read',
+        'users:write',
+        'roles:read',
+        'departments:read',
+        'departments:write',
+        'employees:read',
+        'employees:write',
+        'leads:read',
+        'leads:write',
+        'customers:read',
+        'campaigns:read',
+        'tasks:read',
+        'tasks:write',
+        'attendance:read',
+        'attendance:write',
+        'notifications:read',
+        'notifications:write',
+        'chat:read',
+        'chat:write',
+        'approvals:read',
+        'approvals:write',
+        'calendar:read',
+        'calendar:write',
+        'activity:read',
+        'settings:read'
+    ],
+    HR: [
+        'dashboard:view',
+        'users:read',
+        'departments:read',
+        'employees:read',
+        'employees:write',
+        'tasks:read',
+        'tasks:write',
+        'attendance:read',
+        'attendance:write',
+        'notifications:read',
+        'notifications:write',
+        'chat:read',
+        'chat:write',
+        'approvals:read',
+        'approvals:write',
+        'calendar:read',
+        'calendar:write',
+        'activity:read',
+        'settings:read'
+    ],
+    EMPLOYEE: [
+        'dashboard:view',
+        'employees:read',
+        'tasks:read',
+        'tasks:write',
+        'attendance:read',
+        'attendance:write',
+        'notifications:read',
+        'chat:read',
+        'chat:write',
+        'approvals:read',
+        'approvals:write',
+        'calendar:read',
+        'settings:read'
+    ]
+};
+
+const syncRolePermissions = async (roleCode, permissionCodes, seededPerms) => {
+    const role = await Role.findOne({ roleCode });
+    if (!role) return;
+
+    await RolePermission.deleteMany({ roleId: role._id });
+
+    const mappings = seededPerms
+        .filter((permission) =>
+            permissionCodes.includes(permission.permissionCode)
+        )
+        .map((permission) => ({
+            roleId: role._id,
+            permissionId: permission._id
+        }));
+
+    if (mappings.length > 0) {
+        await RolePermission.insertMany(mappings);
+    }
+
+    role.permissions = permissionCodes;
+    await role.save();
+    console.log(`${roleCode} RolePermissions seeded`);
+};
+
 const seedPermissions = async () => {
     try {
-        const permissions = [
-            {
-                permissionCode: 'dashboard:view',
-                permissionName: 'View Dashboard',
-                module: 'Dashboard'
-            },
-            {
-                permissionCode: 'users:read',
-                permissionName: 'Read Users',
-                module: 'Users'
-            },
-            {
-                permissionCode: 'users:write',
-                permissionName: 'Write Users',
-                module: 'Users'
-            },
-            {
-                permissionCode: 'users:delete',
-                permissionName: 'Delete Users',
-                module: 'Users'
-            },
-            {
-                permissionCode: 'permissions:read',
-                permissionName: 'Read Permissions',
-                module: 'Permissions'
-            },
-            {
-                permissionCode: 'permissions:write',
-                permissionName: 'Write Permissions',
-                module: 'Permissions'
-            },
-            {
-                permissionCode: 'permissions:delete',
-                permissionName: 'Delete Permissions',
-                module: 'Permissions'
-            },
-            {
-                permissionCode: 'roles:read',
-                permissionName: 'Read Roles',
-                module: 'Roles'
-            },
-            {
-                permissionCode: 'roles:write',
-                permissionName: 'Write Roles',
-                module: 'Roles'
-            },
-            {
-                permissionCode: 'roles:delete',
-                permissionName: 'Delete Roles',
-                module: 'Roles'
-            },
-            {
-                permissionCode: 'departments:read',
-                permissionName: 'Read Departments',
-                module: 'Departments'
-            },
-            {
-                permissionCode: 'departments:write',
-                permissionName: 'Write Departments',
-                module: 'Departments'
-            },
-            {
-                permissionCode: 'departments:delete',
-                permissionName: 'Delete Departments',
-                module: 'Departments'
-            },
-            {
-                permissionCode: 'employees:read',
-                permissionName: 'Read Employees',
-                module: 'Employees'
-            },
-            {
-                permissionCode: 'employees:write',
-                permissionName: 'Write Employees',
-                module: 'Employees'
-            },
-            {
-                permissionCode: 'employees:delete',
-                permissionName: 'Delete Employees',
-                module: 'Employees'
-            },
-            {
-                permissionCode: 'leads:read',
-                permissionName: 'Read Leads',
-                module: 'Leads'
-            },
-            {
-                permissionCode: 'leads:write',
-                permissionName: 'Write Leads',
-                module: 'Leads'
-            },
-            {
-                permissionCode: 'leads:delete',
-                permissionName: 'Delete Leads',
-                module: 'Leads'
-            },
-            {
-                permissionCode: 'customers:read',
-                permissionName: 'Read Customers',
-                module: 'Customers'
-            },
-            {
-                permissionCode: 'campaigns:read',
-                permissionName: 'Read Campaigns',
-                module: 'Campaigns'
-            },
-            {
-                permissionCode: 'tasks:read',
-                permissionName: 'Read Tasks',
-                module: 'Tasks'
-            },
-            {
-                permissionCode: 'tasks:write',
-                permissionName: 'Write Tasks',
-                module: 'Tasks'
-            },
-            {
-                permissionCode: 'tasks:delete',
-                permissionName: 'Delete Tasks',
-                module: 'Tasks'
-            },
-            {
-                permissionCode: 'tasks:write',
-                permissionName: 'Write Tasks',
-                module: 'Tasks'
-            },
-            {
-                permissionCode: 'tasks:delete',
-                permissionName: 'Delete Tasks',
-                module: 'Tasks'
-            },
-            {
-                permissionCode: 'attendance:read',
-                permissionName: 'Read Attendance',
-                module: 'Attendance'
-            },
-            {
-                permissionCode: 'attendance:write',
-                permissionName: 'Write Attendance',
-                module: 'Attendance'
-            },
-            {
-                permissionCode: 'notifications:read',
-                permissionName: 'Read Notifications',
-                module: 'Notifications'
-            },
-            {
-                permissionCode: 'notifications:write',
-                permissionName: 'Write Notifications',
-                module: 'Notifications'
-            },
-            {
-                permissionCode: 'chat:read',
-                permissionName: 'Read Chat',
-                module: 'Chat'
-            },
-            {
-                permissionCode: 'chat:write',
-                permissionName: 'Write Chat',
-                module: 'Chat'
-            },
-            {
-                permissionCode: 'approvals:read',
-                permissionName: 'Read Approvals',
-                module: 'Approvals'
-            },
-            {
-                permissionCode: 'approvals:write',
-                permissionName: 'Write Approvals',
-                module: 'Approvals'
-            },
-            {
-                permissionCode: 'calendar:read',
-                permissionName: 'Read Calendar',
-                module: 'Calendar'
-            },
-            {
-                permissionCode: 'calendar:write',
-                permissionName: 'Write Calendar',
-                module: 'Calendar'
-            },
-            {
-                permissionCode: 'calendar:delete',
-                permissionName: 'Delete Calendar',
-                module: 'Calendar'
-            },
-            {
-                permissionCode: 'activity:read',
-                permissionName: 'Read Activity Logs',
-                module: 'Activity'
-            },
-            {
-                permissionCode: 'attendance:write',
-                permissionName: 'Write Attendance',
-                module: 'Attendance'
-            },
-            {
-                permissionCode: 'notifications:read',
-                permissionName: 'Read Notifications',
-                module: 'Notifications'
-            },
-            {
-                permissionCode: 'notifications:write',
-                permissionName: 'Write Notifications',
-                module: 'Notifications'
-            },
-            {
-                permissionCode: 'chat:read',
-                permissionName: 'Read Chat',
-                module: 'Chat'
-            },
-            {
-                permissionCode: 'chat:write',
-                permissionName: 'Write Chat',
-                module: 'Chat'
-            },
-            {
-                permissionCode: 'approvals:read',
-                permissionName: 'Read Approvals',
-                module: 'Approvals'
-            },
-            {
-                permissionCode: 'approvals:write',
-                permissionName: 'Write Approvals',
-                module: 'Approvals'
-            },
-            {
-                permissionCode: 'calendar:read',
-                permissionName: 'Read Calendar',
-                module: 'Calendar'
-            },
-            {
-                permissionCode: 'calendar:write',
-                permissionName: 'Write Calendar',
-                module: 'Calendar'
-            },
-            {
-                permissionCode: 'calendar:delete',
-                permissionName: 'Delete Calendar',
-                module: 'Calendar'
-            },
-            {
-                permissionCode: 'activity:read',
-                permissionName: 'Read Activity Logs',
-                module: 'Activity'
-            },
-            {
-                permissionCode: 'gps:read',
-                permissionName: 'Read GPS Tracking',
-                module: 'GPS Tracking'
-            },
-            {
-                permissionCode: 'reports:read',
-                permissionName: 'Read Reports',
-                module: 'Reports'
-            },
-            {
-                permissionCode: 'settings:read',
-                permissionName: 'Read Settings',
-                module: 'Settings'
-            }
-        ];
-
-        // 1. Seed permissions
         const seededPerms = [];
-        for (const perm of permissions) {
-            let dbPerm = await Permission.findOne({
-                permissionCode: perm.permissionCode
-            });
+
+        for (const [
+            permissionCode,
+            permissionName,
+            module
+        ] of permissionCatalog) {
+            let dbPerm = await Permission.findOne({ permissionCode });
+
             if (!dbPerm) {
-                dbPerm = await Permission.create(perm);
+                dbPerm = await Permission.create({
+                    permissionCode,
+                    permissionName,
+                    module
+                });
             } else {
-                dbPerm.permissionName = perm.permissionName;
-                dbPerm.module = perm.module;
+                dbPerm.permissionName = permissionName;
+                dbPerm.module = module;
                 await dbPerm.save();
             }
+
             seededPerms.push(dbPerm);
         }
-        console.log('✅ Permissions seeded successfully');
 
-        // 2. Set up default RolePermissions
+        console.log('Permissions seeded successfully');
+
         const superAdminRole = await Role.findOne({ roleCode: 'SUPER_ADMIN' });
-        const adminRole = await Role.findOne({ roleCode: 'ADMIN' });
-        const hrRole = await Role.findOne({ roleCode: 'HR' });
-        const hrRole = await Role.findOne({ roleCode: 'HR' });
-        const employeeRole = await Role.findOne({ roleCode: 'EMPLOYEE' });
-
         if (superAdminRole) {
             await RolePermission.deleteMany({ roleId: superAdminRole._id });
-            const superAdminMappings = seededPerms.map((p) => ({
-                roleId: superAdminRole._id,
-                permissionId: p._id
-            }));
-            await RolePermission.insertMany(superAdminMappings);
+            await RolePermission.insertMany(
+                seededPerms.map((permission) => ({
+                    roleId: superAdminRole._id,
+                    permissionId: permission._id
+                }))
+            );
             superAdminRole.permissions = ['*'];
             await superAdminRole.save();
-            console.log('✅ Super Admin RolePermissions seeded');
+            console.log('Super Admin RolePermissions seeded');
         }
 
-        if (adminRole) {
-            await RolePermission.deleteMany({ roleId: adminRole._id });
-            const adminPermCodes = [
-                'dashboard:view',
-                'permissions:read',
-                'users:read',
-                'users:write',
-                'roles:read',
-                'departments:read',
-                'departments:write',
-                'employees:read',
-                'employees:write',
-                'leads:read',
-                'leads:write',
-                'customers:read',
-                'campaigns:read',
-                'tasks:read',
-                'tasks:write',
-                'tasks:write',
-                'attendance:read',
-                'attendance:write',
-                'notifications:read',
-                'notifications:write',
-                'chat:read',
-                'chat:write',
-                'approvals:read',
-                'approvals:write',
-                'calendar:read',
-                'calendar:write',
-                'activity:read',
-                'attendance:write',
-                'notifications:read',
-                'notifications:write',
-                'chat:read',
-                'chat:write',
-                'approvals:read',
-                'approvals:write',
-                'calendar:read',
-                'calendar:write',
-                'activity:read',
-                'settings:read'
-            ];
-            const adminMappings = seededPerms
-                .filter((p) => adminPermCodes.includes(p.permissionCode))
-                .map((p) => ({
-                    roleId: adminRole._id,
-                    permissionId: p._id
-                }));
-            await RolePermission.insertMany(adminMappings);
-            adminRole.permissions = adminPermCodes;
-            await adminRole.save();
-            console.log('✅ Admin RolePermissions seeded');
-        }
-
-        if (hrRole) {
-            await RolePermission.deleteMany({ roleId: hrRole._id });
-            const hrPermCodes = [
-                'dashboard:view',
-                'users:read',
-                'departments:read',
-                'employees:read',
-                'employees:write',
-                'tasks:read',
-                'tasks:write',
-                'attendance:read',
-                'attendance:write',
-                'notifications:read',
-                'notifications:write',
-                'chat:read',
-                'chat:write',
-                'approvals:read',
-                'approvals:write',
-                'calendar:read',
-                'calendar:write',
-                'activity:read',
-                'settings:read'
-            ];
-            const hrMappings = seededPerms
-                .filter((p) => hrPermCodes.includes(p.permissionCode))
-                .map((p) => ({
-                    roleId: hrRole._id,
-                    permissionId: p._id
-                }));
-            await RolePermission.insertMany(hrMappings);
-            hrRole.permissions = hrPermCodes;
-            await hrRole.save();
-            console.log('âœ… HR RolePermissions seeded');
-        }
-
-        if (hrRole) {
-            await RolePermission.deleteMany({ roleId: hrRole._id });
-            const hrPermCodes = [
-                'dashboard:view',
-                'users:read',
-                'departments:read',
-                'employees:read',
-                'employees:write',
-                'tasks:read',
-                'tasks:write',
-                'attendance:read',
-                'attendance:write',
-                'notifications:read',
-                'notifications:write',
-                'chat:read',
-                'chat:write',
-                'approvals:read',
-                'approvals:write',
-                'calendar:read',
-                'calendar:write',
-                'activity:read',
-                'settings:read'
-            ];
-            const hrMappings = seededPerms
-                .filter((p) => hrPermCodes.includes(p.permissionCode))
-                .map((p) => ({
-                    roleId: hrRole._id,
-                    permissionId: p._id
-                }));
-            await RolePermission.insertMany(hrMappings);
-            hrRole.permissions = hrPermCodes;
-            await hrRole.save();
-            console.log('âœ… HR RolePermissions seeded');
-        }
-
-        if (employeeRole) {
-            await RolePermission.deleteMany({ roleId: employeeRole._id });
-            const employeePermCodes = [
-                'dashboard:view',
-                'employees:read',
-                'tasks:read',
-                'tasks:write',
-                'attendance:read',
-                'attendance:write',
-                'notifications:read',
-                'chat:read',
-                'chat:write',
-                'approvals:read',
-                'approvals:write',
-                'calendar:read',
-                'attendance:write',
-                'notifications:read',
-                'chat:read',
-                'chat:write',
-                'approvals:read',
-                'approvals:write',
-                'calendar:read',
-                'settings:read'
-            ];
-            const employeeMappings = seededPerms
-                .filter((p) => employeePermCodes.includes(p.permissionCode))
-                .map((p) => ({
-                    roleId: employeeRole._id,
-                    permissionId: p._id
-                }));
-            await RolePermission.insertMany(employeeMappings);
-            employeeRole.permissions = employeePermCodes;
-            await employeeRole.save();
-            console.log('✅ Employee RolePermissions seeded');
-        }
+        await syncRolePermissions('ADMIN', rolePermissions.ADMIN, seededPerms);
+        await syncRolePermissions('HR', rolePermissions.HR, seededPerms);
+        await syncRolePermissions(
+            'EMPLOYEE',
+            rolePermissions.EMPLOYEE,
+            seededPerms
+        );
     } catch (error) {
-        console.error('❌ Error seeding permissions:', error);
+        console.error('Error seeding permissions:', error);
     }
 };
 
