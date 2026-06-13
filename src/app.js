@@ -19,6 +19,11 @@ const profileRoutes = require('./modules/profile/profile.routes');
 const searchRoutes = require('./modules/search/search.routes');
 const attendanceRoutes = require('./modules/attendance/attendance.routes');
 const chatRoutes = require('./modules/chat/chat.routes');
+const taskRoutes = require('./modules/tasks/task.routes');
+const approvalRoutes = require('./modules/approvals/approval.routes');
+const eventRoutes = require('./modules/events/event.routes');
+const analyticsRoutes = require('./modules/analytics/analytics.routes');
+const activityLogRoutes = require('./modules/activityLogs/activityLog.routes');
 
 const app = express();
 
@@ -48,6 +53,11 @@ app.use('/api/audit-logs', auditRoutes);
 app.use('/api/profile', profileRoutes);
 app.use('/api/search', searchRoutes);
 app.use('/api/attendance', attendanceRoutes);
+app.use('/api/tasks', taskRoutes);
+app.use('/api/approvals', approvalRoutes);
+app.use('/api/events', eventRoutes);
+app.use('/api/analytics', analyticsRoutes);
+app.use('/api/activity-logs', activityLogRoutes);
 
 app.use('/api/chat', chatRoutes);
 

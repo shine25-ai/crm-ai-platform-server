@@ -32,6 +32,34 @@ const roleSeeder = async () => {
             ]
         },
         {
+            roleCode: 'HR',
+            roleName: 'HR',
+            isSystemRole: true,
+            description:
+                'Human resources access for employees, onboarding, attendance, tasks, approvals, calendar, chat, and notifications',
+            permissions: [
+                'dashboard:view',
+                'users:read',
+                'departments:read',
+                'employees:read',
+                'employees:write',
+                'tasks:read',
+                'tasks:write',
+                'attendance:read',
+                'attendance:write',
+                'notifications:read',
+                'notifications:write',
+                'chat:read',
+                'chat:write',
+                'approvals:read',
+                'approvals:write',
+                'calendar:read',
+                'calendar:write',
+                'activity:read',
+                'settings:read'
+            ]
+        },
+        {
             roleCode: 'EMPLOYEE',
             roleName: 'Employee',
             isSystemRole: true,
@@ -39,7 +67,15 @@ const roleSeeder = async () => {
             permissions: [
                 'dashboard:view',
                 'employees:read',
+                'tasks:read',
                 'attendance:read',
+                'attendance:write',
+                'notifications:read',
+                'chat:read',
+                'chat:write',
+                'approvals:read',
+                'approvals:write',
+                'calendar:read',
                 'settings:read'
             ]
         }
