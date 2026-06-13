@@ -96,10 +96,12 @@ This project is a comprehensive backend server for a next-generation CRM platfor
    ```
 
 3. Configure environment variables:
+   Copy the example environment file and configure your local settings:
    ```bash
-   cp .env.example .env
+   cp .env.example .env.development
    ```
-   Edit the `.env` file with your configuration.
+   Edit the `.env.development` file with your database, email, and AWS S3 configuration.
+
 
 4. Run the server:
    ```bash
