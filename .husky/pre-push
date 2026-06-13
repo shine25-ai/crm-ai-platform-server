@@ -1,4 +1,16 @@
 #!/usr/bin/env sh
+
+branch=$(git symbolic-ref --short HEAD)
+
+if [  "$branch" = "development" ]; then
+  if [ "$(uname)" = "Darwin" ]; then
+    osascript -e 'display dialog "Direct commits are not allowed. Please create a PR and merge after review." buttons {"OK"} default button "OK" with icon stop'
+  else
+    powershell.exe -Command "Add-Type -AssemblyName PresentationFramework;[System.Windows.MessageBox]::Show('Direct commits are not allowed. Please create a PR and merge after review.')"
+  fi
+  exit 1
+fi
+
 echo "🏗️ Checking build..."
 npm run build
 
