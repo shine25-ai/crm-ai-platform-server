@@ -6,8 +6,34 @@ const authMiddleware = require('../../shared/middleware/auth.middleware');
 const ApiResponse = require('../../shared/utils/response');
 const AppError = require('../../shared/utils/appError');
 const bcrypt = require('bcryptjs');
+const profilePhotoUpload = require('../../shared/middleware/profilePhotoUpload.middleware');
+const { uploadProfilePhotoToS3 } = require('../../shared/services/s3.service');
 
 router.use(authMiddleware);
+
+const findEmployeeForUser = async (
+    userId,
+    employeeId,
+    populateDepartment = false
+) => {
+    let query = null;
+
+    if (employeeId) {
+        query = Employee.findById(employeeId);
+    } else if (userId) {
+        query = Employee.findOne({ userId });
+    }
+
+    if (!query) {
+        return null;
+    }
+
+    if (populateDepartment) {
+        query = query.populate('department');
+    }
+
+    return query;
+};
 
 /**
  * @swagger
@@ -35,12 +61,11 @@ router.get('/', async (req, res, next) => {
             throw new AppError('User not found', 404);
         }
 
-        let employee = null;
-        if (user.employeeId) {
-            employee = await Employee.findById(user.employeeId).populate(
-                'department'
-            );
-        }
+        const employee = await findEmployeeForUser(
+            user._id,
+            user.employeeId,
+            true
+        );
 
         return ApiResponse.success(res, 'Profile retrieved successfully', {
             user,
@@ -89,24 +114,22 @@ router.put('/', async (req, res, next) => {
 
         if (name !== undefined) user.name = name;
         if (mobile !== undefined) user.mobile = mobile;
+        if (profilePhoto !== undefined) user.profilePhoto = profilePhoto;
         await user.save();
 
-        let employee = null;
-        if (user.employeeId) {
-            employee = await Employee.findById(user.employeeId);
-            if (employee) {
-                if (name !== undefined) employee.name = name;
-                if (mobile !== undefined) employee.mobile = mobile;
-                if (profilePhoto !== undefined)
-                    employee.profilePhoto = profilePhoto;
-                if (permanentAddress !== undefined) {
-                    employee.personalInfo = {
-                        ...employee.personalInfo,
-                        permanentAddress
-                    };
-                }
-                await employee.save();
+        const employee = await findEmployeeForUser(user._id, user.employeeId);
+        if (employee) {
+            if (name !== undefined) employee.name = name;
+            if (mobile !== undefined) employee.mobile = mobile;
+            if (profilePhoto !== undefined)
+                employee.profilePhoto = profilePhoto;
+            if (permanentAddress !== undefined) {
+                employee.personalInfo = {
+                    ...employee.personalInfo,
+                    permanentAddress
+                };
             }
+            await employee.save();
         }
 
         return ApiResponse.success(res, 'Profile updated successfully', {
@@ -117,6 +140,51 @@ router.put('/', async (req, res, next) => {
         next(error);
     }
 });
+
+router.post(
+    '/photo',
+    profilePhotoUpload.single('photo'),
+    async (req, res, next) => {
+        try {
+            if (!req.file) {
+                throw new AppError('Profile photo is required', 400);
+            }
+
+            const user = await User.findById(req.user.userId);
+            if (!user) {
+                throw new AppError('User not found', 404);
+            }
+
+            const employee = await findEmployeeForUser(
+                user._id,
+                user.employeeId
+            );
+
+            const profilePhoto = await uploadProfilePhotoToS3(
+                req.file,
+                req.user.userId
+            );
+
+            user.profilePhoto = profilePhoto;
+            await user.save();
+
+            if (employee) {
+                employee.profilePhoto = profilePhoto;
+                await employee.save();
+            }
+
+            return ApiResponse.success(
+                res,
+                'Profile photo uploaded successfully',
+                {
+                    profilePhoto
+                }
+            );
+        } catch (error) {
+            next(error);
+        }
+    }
+);
 
 /**
  * @swagger
