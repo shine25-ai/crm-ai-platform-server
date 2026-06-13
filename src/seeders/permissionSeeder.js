@@ -126,9 +126,74 @@ const seedPermissions = async () => {
                 module: 'Tasks'
             },
             {
+                permissionCode: 'tasks:write',
+                permissionName: 'Write Tasks',
+                module: 'Tasks'
+            },
+            {
+                permissionCode: 'tasks:delete',
+                permissionName: 'Delete Tasks',
+                module: 'Tasks'
+            },
+            {
                 permissionCode: 'attendance:read',
                 permissionName: 'Read Attendance',
                 module: 'Attendance'
+            },
+            {
+                permissionCode: 'attendance:write',
+                permissionName: 'Write Attendance',
+                module: 'Attendance'
+            },
+            {
+                permissionCode: 'notifications:read',
+                permissionName: 'Read Notifications',
+                module: 'Notifications'
+            },
+            {
+                permissionCode: 'notifications:write',
+                permissionName: 'Write Notifications',
+                module: 'Notifications'
+            },
+            {
+                permissionCode: 'chat:read',
+                permissionName: 'Read Chat',
+                module: 'Chat'
+            },
+            {
+                permissionCode: 'chat:write',
+                permissionName: 'Write Chat',
+                module: 'Chat'
+            },
+            {
+                permissionCode: 'approvals:read',
+                permissionName: 'Read Approvals',
+                module: 'Approvals'
+            },
+            {
+                permissionCode: 'approvals:write',
+                permissionName: 'Write Approvals',
+                module: 'Approvals'
+            },
+            {
+                permissionCode: 'calendar:read',
+                permissionName: 'Read Calendar',
+                module: 'Calendar'
+            },
+            {
+                permissionCode: 'calendar:write',
+                permissionName: 'Write Calendar',
+                module: 'Calendar'
+            },
+            {
+                permissionCode: 'calendar:delete',
+                permissionName: 'Delete Calendar',
+                module: 'Calendar'
+            },
+            {
+                permissionCode: 'activity:read',
+                permissionName: 'Read Activity Logs',
+                module: 'Activity'
             },
             {
                 permissionCode: 'attendance:write',
@@ -223,6 +288,7 @@ const seedPermissions = async () => {
         const superAdminRole = await Role.findOne({ roleCode: 'SUPER_ADMIN' });
         const adminRole = await Role.findOne({ roleCode: 'ADMIN' });
         const hrRole = await Role.findOne({ roleCode: 'HR' });
+        const hrRole = await Role.findOne({ roleCode: 'HR' });
         const employeeRole = await Role.findOne({ roleCode: 'EMPLOYEE' });
 
         if (superAdminRole) {
@@ -255,7 +321,18 @@ const seedPermissions = async () => {
                 'campaigns:read',
                 'tasks:read',
                 'tasks:write',
+                'tasks:write',
                 'attendance:read',
+                'attendance:write',
+                'notifications:read',
+                'notifications:write',
+                'chat:read',
+                'chat:write',
+                'approvals:read',
+                'approvals:write',
+                'calendar:read',
+                'calendar:write',
+                'activity:read',
                 'attendance:write',
                 'notifications:read',
                 'notifications:write',
@@ -315,6 +392,41 @@ const seedPermissions = async () => {
             console.log('âœ… HR RolePermissions seeded');
         }
 
+        if (hrRole) {
+            await RolePermission.deleteMany({ roleId: hrRole._id });
+            const hrPermCodes = [
+                'dashboard:view',
+                'users:read',
+                'departments:read',
+                'employees:read',
+                'employees:write',
+                'tasks:read',
+                'tasks:write',
+                'attendance:read',
+                'attendance:write',
+                'notifications:read',
+                'notifications:write',
+                'chat:read',
+                'chat:write',
+                'approvals:read',
+                'approvals:write',
+                'calendar:read',
+                'calendar:write',
+                'activity:read',
+                'settings:read'
+            ];
+            const hrMappings = seededPerms
+                .filter((p) => hrPermCodes.includes(p.permissionCode))
+                .map((p) => ({
+                    roleId: hrRole._id,
+                    permissionId: p._id
+                }));
+            await RolePermission.insertMany(hrMappings);
+            hrRole.permissions = hrPermCodes;
+            await hrRole.save();
+            console.log('âœ… HR RolePermissions seeded');
+        }
+
         if (employeeRole) {
             await RolePermission.deleteMany({ roleId: employeeRole._id });
             const employeePermCodes = [
@@ -323,6 +435,13 @@ const seedPermissions = async () => {
                 'tasks:read',
                 'tasks:write',
                 'attendance:read',
+                'attendance:write',
+                'notifications:read',
+                'chat:read',
+                'chat:write',
+                'approvals:read',
+                'approvals:write',
+                'calendar:read',
                 'attendance:write',
                 'notifications:read',
                 'chat:read',
