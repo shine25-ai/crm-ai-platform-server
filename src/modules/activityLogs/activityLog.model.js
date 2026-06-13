@@ -18,6 +18,18 @@ const activityLogSchema = new mongoose.Schema(
         description: {
             type: String,
             required: true
+        },
+        ipAddress: {
+            type: String,
+            default: ''
+        },
+        deviceType: {
+            type: String,
+            default: ''
+        },
+        location: {
+            type: String,
+            default: ''
         }
     },
     { timestamps: true }

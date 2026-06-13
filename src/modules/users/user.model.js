@@ -20,6 +20,10 @@ const userSchema = new mongoose.Schema(
             ref: 'Employee',
             default: null
         },
+        profilePhoto: {
+            type: String,
+            default: ''
+        },
         mobile: String,
         department: String,
         status: {
