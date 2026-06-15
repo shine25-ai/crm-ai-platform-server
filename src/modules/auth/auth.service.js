@@ -225,6 +225,46 @@ const completeOnboarding = async (
 
     await employee.save();
 
+    // Notify HR, Admin, and Super Admin about the completed onboarding (non-blocking)
+    try {
+        const notifyRoleCodes = ['HR', 'ADMIN', 'SUPER_ADMIN'];
+        const notifyRoles = await Role.find({
+            roleCode: { $in: notifyRoleCodes }
+        }).select('_id');
+        const notifyRoleIds = notifyRoles.map((r) => r._id);
+
+        const notifyUsers = await User.find({
+            roleId: { $in: notifyRoleIds },
+            status: 'Active'
+        }).select('email');
+
+        const recipientEmails = notifyUsers.map((u) => u.email).filter(Boolean);
+
+        if (recipientEmails.length > 0) {
+            emailService
+                .sendOnboardingCompletionNotification(recipientEmails, {
+                    name: employee.name,
+                    employeeId: employee.employeeId,
+                    email: employee.email,
+                    department: employee.department?.departmentName || '',
+                    designation: employee.designation,
+                    mobile: employee.mobile
+                })
+                .catch((err) => {
+                    // Silently log — must not affect onboarding response
+                    console.error(
+                        '[Auth Service] Failed to send HR notification email:',
+                        err.message
+                    );
+                });
+        }
+    } catch (notifyErr) {
+        console.error(
+            '[Auth Service] Could not fetch HR/Admin recipients for notification:',
+            notifyErr.message
+        );
+    }
+
     return {
         message:
             'Account setup complete. Your access will be activated after HR completes joining details.',
