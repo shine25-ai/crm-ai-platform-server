@@ -188,6 +188,7 @@ const updateEmployee = async (id, empData) => {
     }
 
     const requestedStatus = empData.status;
+    const previousStatus = employee.status; // capture before mutation
     const nextData = {
         ...employee.toObject(),
         ...empData,
@@ -226,9 +227,33 @@ const updateEmployee = async (id, empData) => {
     await syncEmployeeUserStatus(employee);
     await updateDepartmentCounts();
 
-    return await Employee.findById(employee._id)
+    const updatedEmployee = await Employee.findById(employee._id)
         .populate('department', 'departmentName status')
         .populate('manager', 'name designation employeeId');
+
+    // Send activation email if employee just became Active (non-blocking)
+    if (
+        previousStatus !== 'Active' &&
+        employee.status === 'Active' &&
+        employee.email
+    ) {
+        emailService
+            .sendAccountActivationEmail(
+                employee.email,
+                employee.name,
+                employee.employeeId,
+                updatedEmployee.department?.departmentName || '',
+                employee.designation
+            )
+            .catch((err) => {
+                console.error(
+                    '[Employee Service] Failed to send activation email:',
+                    err.message
+                );
+            });
+    }
+
+    return updatedEmployee;
 };
 
 /**
