@@ -56,9 +56,10 @@ const createTask = async (data, user) => {
 
     await notificationService.createNotification(
         task.assignedTo,
-        'Task assigned',
-        `${data.title} has been assigned to you.`,
-        'Task Assigned'
+        'Task Assigned',
+        `"${data.title}" has been assigned to you.`,
+        'Task Assigned',
+        { referenceId: task._id, referenceType: 'Task', actionUrl: '/tasks' }
     );
     await logActivity(
         user.userId,
@@ -74,6 +75,13 @@ const updateTask = async (id, data, user) => {
     const task = await Task.findById(id);
     if (!task) throw new AppError('Task not found', 404);
     await assertTaskAccess(task, user);
+
+    // Detect reassignment before mutating the task
+    const previousAssignee = String(task.assignedTo);
+    const newAssignee = data.assignedTo
+        ? String(data.assignedTo)
+        : previousAssignee;
+    const isReassigned = newAssignee !== previousAssignee;
 
     const editable = [
         'title',
@@ -97,12 +105,33 @@ const updateTask = async (id, data, user) => {
     if (task.status === 'Completed') task.progress = 100;
     await task.save();
 
+    // Notify new assignee on reassignment
+    if (isReassigned) {
+        await notificationService.createNotification(
+            task.assignedTo,
+            'Task Reassigned',
+            `"${task.title}" has been reassigned to you.`,
+            'Task Assigned',
+            {
+                referenceId: task._id,
+                referenceType: 'Task',
+                actionUrl: '/tasks'
+            }
+        );
+    }
+
+    // Notify assigner when task is completed
     if (task.status === 'Completed') {
         await notificationService.createNotification(
             task.assignedBy,
-            'Task completed',
-            `${task.title} was marked completed.`,
-            'Task Completed'
+            'Task Completed',
+            `"${task.title}" was marked as completed.`,
+            'Task Completed',
+            {
+                referenceId: task._id,
+                referenceType: 'Task',
+                actionUrl: '/tasks'
+            }
         );
     }
 
