@@ -26,6 +26,22 @@ router.use(authMiddleware);
  *       401:
  *         description: Unauthorized
  */
+/**
+ * @swagger
+ * /api/chat/contacts:
+ *   get:
+ *     summary: Retrieve list of all active users as chat contacts (accessible to all roles)
+ *     tags: [Chat]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Chat contacts retrieved successfully
+ *       401:
+ *         description: Unauthorized
+ */
+router.get('/contacts', chatController.getContacts);
+
 router.get('/summary', chatController.getChatSummary);
 
 /**

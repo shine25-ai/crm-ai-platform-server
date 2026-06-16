@@ -4,6 +4,27 @@ const mongoose = require('mongoose');
 const ApiResponse = require('../../shared/utils/response');
 
 /**
+ * Return a list of all active users (excluding self) for use as chat contacts.
+ * Accessible to any authenticated user (employees included).
+ */
+const getContacts = async (req, res, next) => {
+    try {
+        const userId = req.user.userId;
+        const contacts = await User.find(
+            { _id: { $ne: userId }, status: { $in: ['Active', 'ACTIVE'] } },
+            'name email department lastActive'
+        ).lean();
+        return ApiResponse.success(
+            res,
+            'Chat contacts retrieved successfully',
+            contacts
+        );
+    } catch (error) {
+        next(error);
+    }
+};
+
+/**
  * Fetch conversational message logs between the logged-in user and a peer user
  */
 const getMessages = async (req, res, next) => {
@@ -121,6 +142,7 @@ const getChatSummary = async (req, res, next) => {
 };
 
 module.exports = {
+    getContacts,
     getMessages,
     markRead,
     getChatSummary

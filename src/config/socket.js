@@ -2,9 +2,14 @@ const socketIO = require('socket.io');
 const jwt = require('jsonwebtoken');
 const Message = require('../modules/chat/chat.model');
 const User = require('../modules/users/user.model');
+const notificationService = require('../modules/notifications/notification.service');
 
-// Map to track online sockets: userId (string) -> socketId (string)
-const onlineUsers = new Map();
+/**
+ * Track online users: userId (string) -> Set of socketIds
+ * A user can have multiple sockets open (e.g. chat socket + notification socket).
+ * Using a Set per user ensures presence is accurate across all their connections.
+ */
+const onlineUsers = new Map(); // userId -> Set<socketId>
 
 const initSocket = (server) => {
     const io = socketIO(server, {
@@ -17,15 +22,13 @@ const initSocket = (server) => {
     // JWT verification handshake middleware
     io.use(async (socket, next) => {
         try {
-            // Find token in query params or auth payload
             const token =
                 socket.handshake.auth?.token || socket.handshake.query?.token;
             if (!token) {
                 return next(new Error('Authentication failed: Missing token'));
             }
-
             const decoded = jwt.verify(token, process.env.JWT_SECRET);
-            socket.user = decoded; // Store decodified user details on the socket session
+            socket.user = decoded;
             next();
         } catch (err) {
             console.error(
@@ -38,13 +41,23 @@ const initSocket = (server) => {
 
     io.on('connection', async (socket) => {
         const userId = socket.user.userId;
-        onlineUsers.set(userId, socket.id);
+
+        // ── Join a personal room named by userId ──────────────────────────────
+        // io.to(userId) will now reach ALL sockets this user has open,
+        // solving the dual-socket issue between PortalChat & notification listener.
+        socket.join(userId);
+
+        // Track socket count per user for accurate online-presence
+        if (!onlineUsers.has(userId)) {
+            onlineUsers.set(userId, new Set());
+        }
+        onlineUsers.get(userId).add(socket.id);
+
         console.log(
-            `🔌 User connected to Chat Socket: ${userId} (Socket: ${socket.id})`
+            `🔌 Socket connected: ${userId} (Socket: ${socket.id}, total: ${onlineUsers.get(userId).size})`
         );
 
         try {
-            // Update user's lastActive timestamp in database
             await User.findByIdAndUpdate(userId, { lastActive: new Date() });
         } catch (err) {
             console.error(
@@ -56,13 +69,20 @@ const initSocket = (server) => {
         // Broadcast list of currently online user IDs
         io.emit('online_users', Array.from(onlineUsers.keys()));
 
-        // Listen for outgoing real-time messages
+        // ── send_message ──────────────────────────────────────────────────────
         socket.on('send_message', async (data) => {
             try {
                 const { receiverId, messageText } = data;
                 if (!receiverId || !messageText) return;
 
-                // 1. Persist the message record to database
+                // 1. Fetch sender display name for notification
+                const sender = await User.findById(userId)
+                    .select('name email')
+                    .lean();
+                const senderName =
+                    sender?.name || sender?.email || 'A colleague';
+
+                // 2. Persist message to database
                 const message = await Message.create({
                     senderId: userId,
                     receiverId,
@@ -79,14 +99,50 @@ const initSocket = (server) => {
                     createdAt: message.createdAt
                 };
 
-                // 2. Deliver to receiver client in real time (if currently online)
-                const receiverSocketId = onlineUsers.get(receiverId);
-                if (receiverSocketId) {
-                    io.to(receiverSocketId).emit('receive_message', payload);
-                }
+                // 3. Deliver to ALL of the receiver's sockets via their room
+                //    (handles PortalChat socket + notification socket simultaneously)
+                const receiverIsOnline = onlineUsers.has(receiverId);
+                io.to(receiverId).emit('receive_message', payload);
 
-                // 3. Send confirmation back to sender client
+                // 4. Confirm to the sender's socket
                 socket.emit('message_sent', payload);
+
+                // 5. Create a persistent DB notification for the receiver
+                const preview =
+                    messageText.length > 60
+                        ? `${messageText.substring(0, 60)}…`
+                        : messageText;
+
+                const receiver = await User.findById(receiverId).lean();
+                const actionUrl = receiver?.employeeId
+                    ? `/employee/dashboard?tab=chat&senderId=${userId}`
+                    : `/chat?senderId=${userId}`;
+
+                const notification =
+                    await notificationService.createNotification(
+                        receiverId,
+                        `New message from ${senderName}`,
+                        preview,
+                        'New Message',
+                        {
+                            referenceId: message._id,
+                            referenceType: 'Chat',
+                            actionUrl
+                        }
+                    );
+
+                // 6. Push real-time badge update to ALL of receiver's sockets
+                if (receiverIsOnline && notification) {
+                    io.to(receiverId).emit('new_notification', {
+                        _id: notification._id,
+                        title: notification.title,
+                        message: notification.message,
+                        type: notification.type,
+                        isRead: false,
+                        actionUrl: notification.actionUrl,
+                        createdAt: notification.createdAt
+                    });
+                }
             } catch (err) {
                 console.error(
                     'Socket send_message processing error:',
@@ -95,25 +151,21 @@ const initSocket = (server) => {
             }
         });
 
-        // Listen for marking messages as read in real time
+        // ── mark_read ─────────────────────────────────────────────────────────
         socket.on('mark_read', async (data) => {
             try {
-                const { senderId } = data; // senderId is the other person whose messages were read by current user
+                const { senderId } = data;
                 if (!senderId) return;
 
-                // 1. Mark in database
                 await Message.updateMany(
                     { senderId, receiverId: userId, isRead: false },
                     { $set: { isRead: true } }
                 );
 
-                // 2. Notify the sender client that their message is read
-                const senderSocketId = onlineUsers.get(senderId);
-                if (senderSocketId) {
-                    io.to(senderSocketId).emit('messages_read_by_receiver', {
-                        readerId: userId
-                    });
-                }
+                // Notify ALL of the original sender's sockets that messages were read
+                io.to(senderId).emit('messages_read_by_receiver', {
+                    readerId: userId
+                });
             } catch (err) {
                 console.error(
                     'Socket mark_read processing error:',
@@ -122,12 +174,22 @@ const initSocket = (server) => {
             }
         });
 
+        // ── disconnect ────────────────────────────────────────────────────────
         socket.on('disconnect', async () => {
-            onlineUsers.delete(userId);
-            console.log(`❌ User disconnected from Chat Socket: ${userId}`);
+            const userSockets = onlineUsers.get(userId);
+            if (userSockets) {
+                userSockets.delete(socket.id);
+                if (userSockets.size === 0) {
+                    // Last socket for this user disconnected
+                    onlineUsers.delete(userId);
+                }
+            }
+
+            console.log(
+                `❌ Socket disconnected: ${userId} (Socket: ${socket.id}, remaining: ${onlineUsers.get(userId)?.size ?? 0})`
+            );
 
             try {
-                // Update user's lastActive timestamp on disconnect
                 await User.findByIdAndUpdate(userId, {
                     lastActive: new Date()
                 });
@@ -138,7 +200,6 @@ const initSocket = (server) => {
                 );
             }
 
-            // Broadcast updated list of online user IDs
             io.emit('online_users', Array.from(onlineUsers.keys()));
         });
     });
