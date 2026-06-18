@@ -20,7 +20,8 @@ const scheduleTaskDeadlineReminders = () => {
             // Tasks due within the next 24 hours that are not yet completed/cancelled
             const tasks = await Task.find({
                 dueDate: { $gte: now, $lte: in24h },
-                status: { $nin: ['Completed', 'Cancelled'] }
+                status: { $nin: ['Completed', 'Cancelled'] },
+                isDeleted: false
             }).select('_id title dueDate assignedTo');
 
             if (tasks.length === 0) {
@@ -44,7 +45,7 @@ const scheduleTaskDeadlineReminders = () => {
                         {
                             referenceId: task._id,
                             referenceType: 'Task',
-                            actionUrl: '/tasks'
+                            actionUrl: '/employee/dashboard?tab=tasks'
                         }
                     )
                 )

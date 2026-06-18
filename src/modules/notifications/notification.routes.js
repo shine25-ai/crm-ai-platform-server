@@ -49,7 +49,7 @@ router.get('/', notificationController.getNotifications);
  *       - bearerAuth: []
  *     responses:
  *       200:
- *         description: Returns { count: N }
+ *         description: 'Returns { count: N }'
  */
 // Must be registered BEFORE /:id routes to avoid param collision
 router.get('/unread-count', notificationController.getUnreadCount);

@@ -1,3 +1,11 @@
+// Polyfill global crypto for older Node versions (such as Node v16.20.2)
+if (typeof global.crypto === 'undefined') {
+    const crypto = require('crypto');
+    global.crypto = crypto.webcrypto || crypto;
+    if (global.crypto && !global.crypto.randomUUID) {
+        global.crypto.randomUUID = crypto.randomUUID;
+    }
+}
 require('./config/env');
 const http = require('http');
 const app = require('./app');

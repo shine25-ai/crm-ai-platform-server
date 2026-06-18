@@ -47,7 +47,9 @@ const getUnreadCount = async (req, res, next) => {
 const markNotificationAsRead = async (req, res, next) => {
     try {
         const notification = await notificationService.markAsRead(
-            req.params.id
+            req.params.id,
+            req.user.userId,
+            req.user.roleCode
         );
         return ApiResponse.success(
             res,

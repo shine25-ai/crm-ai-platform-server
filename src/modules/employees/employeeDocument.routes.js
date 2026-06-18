@@ -98,4 +98,29 @@ router.get('/:employeeId', employeeDocumentController.getEmployeeDocuments);
  */
 router.delete('/:id', employeeDocumentController.deleteDocument);
 
+/**
+ * @swagger
+ * /api/employee-documents/download/{id}:
+ *   get:
+ *     summary: Download a specific document securely by ID
+ *     tags: [Employee Documents]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: The document ID
+ *     responses:
+ *       200:
+ *         description: Document downloaded successfully
+ *       403:
+ *         description: Forbidden
+ *       404:
+ *         description: Document not found
+ */
+router.get('/download/:id', employeeDocumentController.downloadDocument);
+
 module.exports = router;
