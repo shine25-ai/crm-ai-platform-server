@@ -177,6 +177,24 @@ const removeGroupMember = async (req, res, next) => {
 };
 
 /**
+ * Fetch conversational members of a group chat
+ */
+const getGroupMembers = async (req, res, next) => {
+    try {
+        const userId = req.user.userId;
+        const { id } = req.params;
+        const result = await chatService.getGroupMembers(userId, id);
+        return ApiResponse.success(
+            res,
+            'Group members retrieved successfully',
+            result
+        );
+    } catch (error) {
+        next(error);
+    }
+};
+
+/**
  * Toggle emoji reaction on message
  */
 const toggleReaction = async (req, res, next) => {
@@ -235,5 +253,6 @@ module.exports = {
     addGroupMembers,
     removeGroupMember,
     toggleReaction,
-    uploadAttachment
+    uploadAttachment,
+    getGroupMembers
 };

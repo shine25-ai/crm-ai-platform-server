@@ -404,10 +404,42 @@ const updateGroup = async (userId, groupId, data) => {
     });
     if (!isParticipant) throw new AppError('Access forbidden', 403);
 
+    const oldName = group.groupName;
     if (data.groupName !== undefined) group.groupName = data.groupName.trim();
     if (data.groupImage !== undefined) group.groupImage = data.groupImage;
 
     await group.save();
+
+    // If name changed, create and broadcast system message
+    if (data.groupName !== undefined && data.groupName.trim() !== oldName) {
+        const currentUser = await User.findById(userId).lean();
+        const currentUserName = currentUser?.name || 'A colleague';
+
+        const sysMsg = await ChatMessage.create({
+            conversationId: groupId,
+            senderId: userId,
+            message: `${currentUserName} changed the group name to "${group.groupName}"`,
+            messageType: 'system'
+        });
+
+        const populatedMsg = await ChatMessage.findById(sysMsg._id)
+            .populate('senderId', 'name email profilePhoto department')
+            .lean();
+
+        const payload = {
+            ...populatedMsg,
+            attachments: [],
+            reactions: [],
+            readBy: []
+        };
+
+        const { getIo } = require('../../config/socket');
+        const io = getIo();
+        if (io) {
+            io.to(String(groupId)).emit('receive_message', payload);
+        }
+    }
+
     return group;
 };
 
@@ -424,6 +456,12 @@ const addGroupMembers = async (userId, groupId, memberIds) => {
     });
     if (!isParticipant) throw new AppError('Access forbidden', 403);
 
+    const currentUser = await User.findById(userId).lean();
+    const currentUserName = currentUser?.name || 'A colleague';
+
+    const { getIo } = require('../../config/socket');
+    const io = getIo();
+
     const added = [];
     for (const mId of memberIds) {
         const exists = await ChatParticipant.exists({
@@ -436,6 +474,69 @@ const addGroupMembers = async (userId, groupId, memberIds) => {
                 userId: mId
             });
             added.push(mId);
+
+            // Fetch target user details
+            const targetUser = await User.findById(mId).lean();
+            const targetUserName = targetUser?.name || 'A colleague';
+
+            // 1. Create database notification for the added user
+            const actionUrl = targetUser?.employeeId
+                ? `/employee/dashboard?tab=chat&senderId=${groupId}`
+                : `/chat?senderId=${groupId}`;
+
+            const notification = await notificationService.createNotification(
+                mId,
+                'New Message',
+                `You were added to the group "${group.groupName}" by ${currentUserName}`,
+                'New Message',
+                {
+                    referenceId: groupId,
+                    referenceType: 'Chat',
+                    actionUrl
+                }
+            );
+
+            // 2. Emit the notification in real-time first
+            if (notification && io) {
+                io.to(String(mId)).emit('new_notification', {
+                    _id: notification._id,
+                    title: notification.title,
+                    message: notification.message,
+                    type: notification.type,
+                    isRead: false,
+                    actionUrl: notification.actionUrl,
+                    createdAt: notification.createdAt
+                });
+            }
+
+            // 3. Create a system message in the chat
+            const sysMsg = await ChatMessage.create({
+                conversationId: groupId,
+                senderId: userId,
+                message: `${targetUserName} was added to the group by ${currentUserName}`,
+                messageType: 'system'
+            });
+
+            const populatedMsg = await ChatMessage.findById(sysMsg._id)
+                .populate('senderId', 'name email profilePhoto department')
+                .lean();
+
+            const payload = {
+                ...populatedMsg,
+                attachments: [],
+                reactions: [],
+                readBy: []
+            };
+
+            // 4. Emit the system message to all participants (including newly added if they connect)
+            if (io) {
+                // To the group room
+                io.to(String(groupId)).emit('receive_message', payload);
+                // Directly to the newly added user to force refresh their list/sidebar
+                io.to(String(mId)).emit('receive_message', payload);
+                // Also trigger a general user_status_changed or chat update
+                io.to(String(mId)).emit('user_status_changed', { userId: mId });
+            }
         }
     }
     return { success: true, added };
@@ -458,10 +559,51 @@ const removeGroupMember = async (userId, groupId, targetUserId) => {
         );
     }
 
+    const currentUser = await User.findById(userId).lean();
+    const currentUserName = currentUser?.name || 'A colleague';
+
+    const targetUser = await User.findById(targetUserId).lean();
+    const targetUserName = targetUser?.name || 'A colleague';
+
     await ChatParticipant.deleteOne({
         conversationId: groupId,
         userId: targetUserId
     });
+
+    const systemText = isSelf
+        ? `${targetUserName} left the group`
+        : `${targetUserName} was removed from the group by ${currentUserName}`;
+
+    // Create a system message in the chat
+    const sysMsg = await ChatMessage.create({
+        conversationId: groupId,
+        senderId: userId,
+        message: systemText,
+        messageType: 'system'
+    });
+
+    const populatedMsg = await ChatMessage.findById(sysMsg._id)
+        .populate('senderId', 'name email profilePhoto department')
+        .lean();
+
+    const payload = {
+        ...populatedMsg,
+        attachments: [],
+        reactions: [],
+        readBy: []
+    };
+
+    const { getIo } = require('../../config/socket');
+    const io = getIo();
+    if (io) {
+        io.to(String(groupId)).emit('receive_message', payload);
+        // Also emit to the removed user's room to trigger updating their sidebar / evicting them
+        io.to(String(targetUserId)).emit('receive_message', payload);
+        io.to(String(targetUserId)).emit('user_status_changed', {
+            userId: targetUserId
+        });
+    }
+
     return { success: true };
 };
 
@@ -490,6 +632,28 @@ const toggleReaction = async (userId, messageId, reaction) => {
     }
 };
 
+/**
+ * Get members of a group
+ */
+const getGroupMembers = async (userId, groupId) => {
+    const isParticipant = await ChatParticipant.exists({
+        conversationId: groupId,
+        userId
+    });
+    if (!isParticipant) {
+        throw new AppError('Access forbidden', 403);
+    }
+
+    const participants = await ChatParticipant.find({ conversationId: groupId })
+        .populate(
+            'userId',
+            'name email profilePhoto department lastActive status'
+        )
+        .lean();
+
+    return participants.map((p) => p.userId).filter(Boolean);
+};
+
 module.exports = {
     getChatSummary,
     getConversationMessages,
@@ -499,5 +663,6 @@ module.exports = {
     updateGroup,
     addGroupMembers,
     removeGroupMember,
-    toggleReaction
+    toggleReaction,
+    getGroupMembers
 };

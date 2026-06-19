@@ -12,6 +12,7 @@ const chatService = require('../modules/chat/chat.service');
 
 // Track online users: userId -> Set of socketIds
 const onlineUsers = new Map();
+let ioInstance = null;
 
 const initSocket = (server) => {
     const io = socketIO(server, {
@@ -20,6 +21,7 @@ const initSocket = (server) => {
             methods: ['GET', 'POST']
         }
     });
+    ioInstance = io;
 
     // JWT secure socket handshake middleware
     io.use(async (socket, next) => {
@@ -104,7 +106,7 @@ const initSocket = (server) => {
                 const payload = result.message;
 
                 // Deliver to conversation room
-                io.to(conversationId).emit('receive_message', payload);
+                io.to(String(conversationId)).emit('receive_message', payload);
 
                 // Fetch sender name
                 const sender = await User.findById(userId)
@@ -165,7 +167,7 @@ const initSocket = (server) => {
                                     ? `New message in Group`
                                     : `New message from ${senderName}`,
                                 preview,
-                                isGroup ? 'Group Mention' : 'New Message',
+                                'New Message',
                                 {
                                     referenceId: payload._id,
                                     referenceType: 'Chat',
@@ -250,7 +252,7 @@ const initSocket = (server) => {
                     .populate('userId', 'name')
                     .lean();
 
-                io.to(conversationId).emit('reaction_added', {
+                io.to(String(conversationId)).emit('reaction_added', {
                     messageId,
                     reactions: reactionsList
                 });
@@ -293,9 +295,12 @@ const initSocket = (server) => {
     return io;
 };
 
-const getOnlineUsers = () => onlineUsers;
+const getOnlineUsers = () => Array.from(onlineUsers.keys());
+
+const getIo = () => ioInstance;
 
 module.exports = {
     initSocket,
-    getOnlineUsers
+    getOnlineUsers,
+    getIo
 };
