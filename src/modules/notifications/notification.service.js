@@ -70,10 +70,18 @@ const getUnreadCount = async (userId) => {
  * Mark a single notification as read (also records readAt).
  * @param {string} id - notification _id
  */
-const markAsRead = async (id) => {
+const markAsRead = async (id, userId, roleCode) => {
     const notification = await Notification.findById(id);
     if (!notification) {
         throw new AppError('Notification not found', 404);
+    }
+    if (roleCode === 'EMPLOYEE' || roleCode === 'Employee') {
+        if (String(notification.userId) !== String(userId)) {
+            throw new AppError(
+                "Forbidden: Access to another user's notification is blocked.",
+                403
+            );
+        }
     }
     if (!notification.isRead) {
         notification.isRead = true;

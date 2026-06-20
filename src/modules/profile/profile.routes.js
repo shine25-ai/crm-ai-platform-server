@@ -110,7 +110,8 @@ router.put('/', async (req, res, next) => {
             throw new AppError('User not found', 404);
         }
 
-        const { name, mobile, profilePhoto, permanentAddress } = req.body;
+        const { name, mobile, profilePhoto, permanentAddress, personalInfo } =
+            req.body;
 
         if (name !== undefined) user.name = name;
         if (mobile !== undefined) user.mobile = mobile;
@@ -123,10 +124,14 @@ router.put('/', async (req, res, next) => {
             if (mobile !== undefined) employee.mobile = mobile;
             if (profilePhoto !== undefined)
                 employee.profilePhoto = profilePhoto;
-            if (permanentAddress !== undefined) {
+
+            if (personalInfo !== undefined || permanentAddress !== undefined) {
                 employee.personalInfo = {
                     ...employee.personalInfo,
-                    permanentAddress
+                    ...personalInfo,
+                    ...(permanentAddress !== undefined
+                        ? { permanentAddress }
+                        : {})
                 };
             }
             await employee.save();

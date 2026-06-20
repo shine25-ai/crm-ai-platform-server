@@ -1,15 +1,18 @@
 const socketIO = require('socket.io');
 const jwt = require('jsonwebtoken');
-const Message = require('../modules/chat/chat.model');
+const ChatConversation = require('../modules/chat/chatConversation.model');
+const ChatParticipant = require('../modules/chat/chatParticipant.model');
+const ChatMessage = require('../modules/chat/chatMessage.model');
+const ChatMessageRead = require('../modules/chat/chatMessageRead.model');
+const ChatReaction = require('../modules/chat/chatReaction.model');
+const ChatGroup = require('../modules/chat/chatGroup.model');
 const User = require('../modules/users/user.model');
 const notificationService = require('../modules/notifications/notification.service');
+const chatService = require('../modules/chat/chat.service');
 
-/**
- * Track online users: userId (string) -> Set of socketIds
- * A user can have multiple sockets open (e.g. chat socket + notification socket).
- * Using a Set per user ensures presence is accurate across all their connections.
- */
-const onlineUsers = new Map(); // userId -> Set<socketId>
+// Track online users: userId -> Set of socketIds
+const onlineUsers = new Map();
+let ioInstance = null;
 
 const initSocket = (server) => {
     const io = socketIO(server, {
@@ -18,8 +21,9 @@ const initSocket = (server) => {
             methods: ['GET', 'POST']
         }
     });
+    ioInstance = io;
 
-    // JWT verification handshake middleware
+    // JWT secure socket handshake middleware
     io.use(async (socket, next) => {
         try {
             const token =
@@ -31,10 +35,7 @@ const initSocket = (server) => {
             socket.user = decoded;
             next();
         } catch (err) {
-            console.error(
-                'Socket authentication handshake error:',
-                err.message
-            );
+            console.error('Socket auth error:', err.message);
             return next(new Error('Authentication failed: Invalid token'));
         }
     });
@@ -42,174 +43,264 @@ const initSocket = (server) => {
     io.on('connection', async (socket) => {
         const userId = socket.user.userId;
 
-        // ── Join a personal room named by userId ──────────────────────────────
-        // io.to(userId) will now reach ALL sockets this user has open,
-        // solving the dual-socket issue between PortalChat & notification listener.
+        // Join personal user room to push user-specific events
         socket.join(userId);
 
-        // Track socket count per user for accurate online-presence
         if (!onlineUsers.has(userId)) {
             onlineUsers.set(userId, new Set());
         }
         onlineUsers.get(userId).add(socket.id);
 
         console.log(
-            `🔌 Socket connected: ${userId} (Socket: ${socket.id}, total: ${onlineUsers.get(userId).size})`
+            `🔌 Socket connected: ${userId} (Total sockets: ${onlineUsers.get(userId).size})`
         );
 
         try {
-            await User.findByIdAndUpdate(userId, { lastActive: new Date() });
+            await User.findByIdAndUpdate(userId, {
+                lastActive: new Date(),
+                status: 'Active'
+            });
         } catch (err) {
-            console.error(
-                'Failed to update lastActive on connect:',
-                err.message
-            );
+            console.error('Failed to update status on connect:', err.message);
         }
 
-        // Broadcast list of currently online user IDs
+        // Broadcast currently online user IDs list
         io.emit('online_users', Array.from(onlineUsers.keys()));
+        io.emit('user_status_changed', {
+            userId,
+            status: 'Active',
+            lastActive: new Date()
+        });
 
-        // ── send_message ──────────────────────────────────────────────────────
+        // ── Room Joining ──────────────────────────────────────────────────────
+        socket.on('join_chat', (data) => {
+            const { conversationId } = data;
+            if (conversationId) {
+                socket.join(conversationId);
+                console.log(`User ${userId} joined room ${conversationId}`);
+            }
+        });
+
+        socket.on('leave_chat', (data) => {
+            const { conversationId } = data;
+            if (conversationId) {
+                socket.leave(conversationId);
+                console.log(`User ${userId} left room ${conversationId}`);
+            }
+        });
+
+        // ── Messaging ─────────────────────────────────────────────────────────
         socket.on('send_message', async (data) => {
             try {
-                const { receiverId, messageText } = data;
-                if (!receiverId || !messageText) return;
+                const { receiverId, message, messageType = 'text' } = data;
+                if (!receiverId) return;
 
-                // 1. Fetch sender display name for notification
+                // Send via service
+                const result = await chatService.sendMessage(userId, {
+                    receiverId,
+                    message,
+                    messageType
+                });
+
+                const conversationId = result.conversationId;
+                const payload = result.message;
+
+                // Deliver to conversation room
+                io.to(String(conversationId)).emit('receive_message', payload);
+
+                // Fetch sender name
                 const sender = await User.findById(userId)
                     .select('name email')
                     .lean();
                 const senderName =
                     sender?.name || sender?.email || 'A colleague';
 
-                // 2. Persist message to database
-                const message = await Message.create({
-                    senderId: userId,
-                    receiverId,
-                    messageText,
-                    isRead: false
-                });
+                // Query all participants to trigger sidebar previews and offline notifications
+                const participants = await ChatParticipant.find({
+                    conversationId
+                }).lean();
+                const isGroup =
+                    (await ChatConversation.findById(conversationId)).type ===
+                    'group';
 
-                const payload = {
-                    _id: message._id,
-                    senderId: message.senderId.toString(),
-                    receiverId: message.receiverId.toString(),
-                    messageText: message.messageText,
-                    isRead: message.isRead,
-                    createdAt: message.createdAt
-                };
+                for (const part of participants) {
+                    const partUserId = part.userId.toString();
+                    if (partUserId === userId) continue; // Skip sender
 
-                // 3. Deliver to ALL of the receiver's sockets via their room
-                //    (handles PortalChat socket + notification socket simultaneously)
-                const receiverIsOnline = onlineUsers.has(receiverId);
-                io.to(receiverId).emit('receive_message', payload);
+                    // If not in the conversation room currently, emit to their user room to refresh sidebar previews
+                    io.to(partUserId).emit('receive_message', payload);
 
-                // 4. Confirm to the sender's socket
-                socket.emit('message_sent', payload);
-
-                // 5. Create a persistent DB notification for the receiver
-                const preview =
-                    messageText.length > 60
-                        ? `${messageText.substring(0, 60)}…`
-                        : messageText;
-
-                const receiver = await User.findById(receiverId).lean();
-                const actionUrl = receiver?.employeeId
-                    ? `/employee/dashboard?tab=chat&senderId=${userId}`
-                    : `/chat?senderId=${userId}`;
-
-                const notification =
-                    await notificationService.createNotification(
-                        receiverId,
-                        `New message from ${senderName}`,
-                        preview,
-                        'New Message',
-                        {
-                            referenceId: message._id,
-                            referenceType: 'Chat',
-                            actionUrl
+                    // Create notification if the participant is not currently in the conversation room
+                    const userSockets = onlineUsers.get(partUserId);
+                    let isInRoom = false;
+                    if (userSockets && conversationId) {
+                        const roomSockets = io.sockets.adapter.rooms.get(
+                            conversationId.toString()
+                        );
+                        if (roomSockets) {
+                            for (const socketId of userSockets) {
+                                if (roomSockets.has(socketId)) {
+                                    isInRoom = true;
+                                    break;
+                                }
+                            }
                         }
-                    );
+                    }
 
-                // 6. Push real-time badge update to ALL of receiver's sockets
-                if (receiverIsOnline && notification) {
-                    io.to(receiverId).emit('new_notification', {
-                        _id: notification._id,
-                        title: notification.title,
-                        message: notification.message,
-                        type: notification.type,
-                        isRead: false,
-                        actionUrl: notification.actionUrl,
-                        createdAt: notification.createdAt
-                    });
+                    if (!isInRoom) {
+                        const preview =
+                            payload.messageType === 'text'
+                                ? payload.message.length > 60
+                                    ? `${payload.message.substring(0, 60)}…`
+                                    : payload.message
+                                : `Shared a file attachment`;
+
+                        const receiver = await User.findById(partUserId).lean();
+                        const actionUrl = receiver?.employeeId
+                            ? `/employee/dashboard?tab=chat&senderId=${isGroup ? conversationId : userId}`
+                            : `/chat?senderId=${isGroup ? conversationId : userId}`;
+
+                        const notification =
+                            await notificationService.createNotification(
+                                partUserId,
+                                isGroup
+                                    ? `New message in Group`
+                                    : `New message from ${senderName}`,
+                                preview,
+                                'New Message',
+                                {
+                                    referenceId: payload._id,
+                                    referenceType: 'Chat',
+                                    actionUrl
+                                }
+                            );
+
+                        if (notification) {
+                            io.to(partUserId).emit('new_notification', {
+                                _id: notification._id,
+                                title: notification.title,
+                                message: notification.message,
+                                type: notification.type,
+                                isRead: false,
+                                actionUrl: notification.actionUrl,
+                                createdAt: notification.createdAt
+                            });
+                        }
+                    }
                 }
+
+                // Confirm to sender
+                socket.emit('message_sent', payload);
             } catch (err) {
-                console.error(
-                    'Socket send_message processing error:',
-                    err.message
-                );
+                console.error('Socket send_message error:', err.message);
             }
         });
 
-        // ── mark_read ─────────────────────────────────────────────────────────
+        // ── Typing indicators ──────────────────────────────────────────────────
+        socket.on('typing_start', async (data) => {
+            const { conversationId } = data;
+            if (!conversationId) return;
+
+            const sender = await User.findById(userId).select('name').lean();
+            socket.to(conversationId).emit('typing_indicator', {
+                conversationId,
+                userId,
+                name: sender?.name || 'A colleague',
+                isTyping: true
+            });
+        });
+
+        socket.on('typing_stop', (data) => {
+            const { conversationId } = data;
+            if (!conversationId) return;
+
+            socket.to(conversationId).emit('typing_indicator', {
+                conversationId,
+                userId,
+                isTyping: false
+            });
+        });
+
+        // ── Read Receipts ──────────────────────────────────────────────────────
         socket.on('mark_read', async (data) => {
             try {
-                const { senderId } = data;
-                if (!senderId) return;
+                const { conversationId } = data;
+                if (!conversationId) return;
 
-                await Message.updateMany(
-                    { senderId, receiverId: userId, isRead: false },
-                    { $set: { isRead: true } }
-                );
+                await chatService.markMessagesRead(userId, conversationId);
 
-                // Notify ALL of the original sender's sockets that messages were read
-                io.to(senderId).emit('messages_read_by_receiver', {
+                // Notify other participants
+                socket.to(conversationId).emit('messages_read_by_receiver', {
+                    conversationId,
                     readerId: userId
                 });
             } catch (err) {
-                console.error(
-                    'Socket mark_read processing error:',
-                    err.message
-                );
+                console.error('Socket mark_read error:', err.message);
             }
         });
 
-        // ── disconnect ────────────────────────────────────────────────────────
+        // ── Message Reactions ──────────────────────────────────────────────────
+        socket.on('message_reaction', async (data) => {
+            try {
+                const { messageId, reaction, conversationId } = data;
+                if (!messageId || !reaction || !conversationId) return;
+
+                await chatService.toggleReaction(userId, messageId, reaction);
+
+                // Fetch updated reactions list
+                const reactionsList = await ChatReaction.find({ messageId })
+                    .populate('userId', 'name')
+                    .lean();
+
+                io.to(String(conversationId)).emit('reaction_added', {
+                    messageId,
+                    reactions: reactionsList
+                });
+            } catch (err) {
+                console.error('Socket message_reaction error:', err.message);
+            }
+        });
+
+        // ── Disconnect ─────────────────────────────────────────────────────────
         socket.on('disconnect', async () => {
             const userSockets = onlineUsers.get(userId);
             if (userSockets) {
                 userSockets.delete(socket.id);
                 if (userSockets.size === 0) {
-                    // Last socket for this user disconnected
                     onlineUsers.delete(userId);
+                    const now = new Date();
+
+                    try {
+                        await User.findByIdAndUpdate(userId, {
+                            lastActive: now
+                        });
+                        io.emit('online_users', Array.from(onlineUsers.keys()));
+                        io.emit('user_status_changed', {
+                            userId,
+                            status: 'Offline',
+                            lastActive: now
+                        });
+                    } catch (err) {
+                        console.error(
+                            'Failed to update status on disconnect:',
+                            err.message
+                        );
+                    }
                 }
             }
-
-            console.log(
-                `❌ Socket disconnected: ${userId} (Socket: ${socket.id}, remaining: ${onlineUsers.get(userId)?.size ?? 0})`
-            );
-
-            try {
-                await User.findByIdAndUpdate(userId, {
-                    lastActive: new Date()
-                });
-            } catch (err) {
-                console.error(
-                    'Failed to update lastActive on disconnect:',
-                    err.message
-                );
-            }
-
-            io.emit('online_users', Array.from(onlineUsers.keys()));
+            console.log(`❌ Socket disconnected: ${userId}`);
         });
     });
 
     return io;
 };
 
-const getOnlineUsers = () => onlineUsers;
+const getOnlineUsers = () => Array.from(onlineUsers.keys());
+
+const getIo = () => ioInstance;
 
 module.exports = {
     initSocket,
-    getOnlineUsers
+    getOnlineUsers,
+    getIo
 };
