@@ -28,6 +28,7 @@ router.post(
 // Group Chat CRUD and Management
 router.post('/groups', chatController.createGroup);
 router.put('/groups/:id', chatController.updateGroup);
+router.delete('/groups/:id', chatController.deleteGroup);
 router.get('/groups/:id/members', chatController.getGroupMembers);
 router.post('/groups/:id/members', chatController.addGroupMembers);
 router.delete('/groups/:id/members/:userId', chatController.removeGroupMember);
