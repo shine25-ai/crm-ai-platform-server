@@ -1,4 +1,8 @@
-const { S3Client, PutObjectCommand } = require('@aws-sdk/client-s3');
+const {
+    S3Client,
+    PutObjectCommand,
+    DeleteObjectCommand
+} = require('@aws-sdk/client-s3');
 const crypto = require('crypto');
 const path = require('path');
 
@@ -35,7 +39,7 @@ const normalizeBucketBaseUrl = (value) => {
 };
 
 const bucketBaseUrl = normalizeBucketBaseUrl(
-    process.env.S3_URL || process.env.S3_UR
+    process.env.S3_URL || process.env.S3_URL
 );
 
 const s3Client = new S3Client({
@@ -68,6 +72,86 @@ const uploadProfilePhotoToS3 = async (file, userId) => {
     return `${bucketBaseUrl}${key}`;
 };
 
+const uploadChatAttachmentToS3 = async (file, userId) => {
+    const extension = path.extname(file.originalname).toLowerCase();
+    const baseName = path.basename(file.originalname, extension);
+    const key = `chat-attachments/${userId}/${Date.now()}-${crypto.randomUUID()}-${sanitizeFileName(
+        baseName
+    )}${extension}`;
+
+    await s3Client.send(
+        new PutObjectCommand({
+            Bucket: bucketName,
+            Key: key,
+            Body: file.buffer,
+            ContentType: file.mimetype
+        })
+    );
+
+    return `${bucketBaseUrl}${key}`;
+};
+
+const uploadEmployeeDocumentToS3 = async (file, employeeId) => {
+    const extension = path.extname(file.originalname).toLowerCase();
+    const baseName = path.basename(file.originalname, extension);
+    const key = `employee-documents/${employeeId}/${Date.now()}-${crypto.randomUUID()}-${sanitizeFileName(
+        baseName
+    )}${extension}`;
+
+    await s3Client.send(
+        new PutObjectCommand({
+            Bucket: bucketName,
+            Key: key,
+            Body: file.buffer,
+            ContentType: file.mimetype
+        })
+    );
+
+    return `${bucketBaseUrl}${key}`;
+};
+
+const uploadTaskAttachmentToS3 = async (file, userId) => {
+    const extension = path.extname(file.originalname).toLowerCase();
+    const baseName = path.basename(file.originalname, extension);
+    const key = `task-attachments/${userId}/${Date.now()}-${crypto.randomUUID()}-${sanitizeFileName(
+        baseName
+    )}${extension}`;
+
+    await s3Client.send(
+        new PutObjectCommand({
+            Bucket: bucketName,
+            Key: key,
+            Body: file.buffer,
+            ContentType: file.mimetype
+        })
+    );
+
+    return `${bucketBaseUrl}${key}`;
+};
+
+const deleteFileFromS3 = async (urlOrKey) => {
+    if (!urlOrKey) return;
+    try {
+        let key = urlOrKey;
+        if (urlOrKey.startsWith('http')) {
+            const urlObj = new URL(urlOrKey);
+            key = urlObj.pathname.slice(1);
+        }
+        await s3Client.send(
+            new DeleteObjectCommand({
+                Bucket: bucketName,
+                Key: key
+            })
+        );
+    } catch (error) {
+        console.error('Failed to delete file from S3:', error);
+    }
+};
+
 module.exports = {
-    uploadProfilePhotoToS3
+    uploadProfilePhotoToS3,
+    uploadChatAttachmentToS3,
+    uploadEmployeeDocumentToS3,
+    uploadTaskAttachmentToS3,
+    deleteFileFromS3
 };

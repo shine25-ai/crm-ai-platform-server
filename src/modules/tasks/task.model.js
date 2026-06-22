@@ -1,24 +1,5 @@
 const mongoose = require('mongoose');
 
-const commentSchema = new mongoose.Schema(
-    {
-        userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
-        message: { type: String, required: true },
-        createdAt: { type: Date, default: Date.now }
-    },
-    { _id: true }
-);
-
-const attachmentSchema = new mongoose.Schema(
-    {
-        name: String,
-        url: String,
-        type: String,
-        size: String
-    },
-    { _id: false }
-);
-
 const taskSchema = new mongoose.Schema(
     {
         title: { type: String, required: true, trim: true },
@@ -42,11 +23,17 @@ const taskSchema = new mongoose.Schema(
         progress: { type: Number, min: 0, max: 100, default: 0 },
         status: {
             type: String,
-            enum: ['Pending', 'In Progress', 'Completed', 'Cancelled'],
-            default: 'Pending'
+            enum: ['Open', 'In Progress', 'On Hold', 'Completed', 'Cancelled'],
+            default: 'Open'
         },
-        comments: [commentSchema],
-        attachments: [attachmentSchema]
+        // Soft delete fields
+        isDeleted: { type: Boolean, default: false, index: true },
+        deletedAt: { type: Date, default: null },
+        deletedBy: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'User',
+            default: null
+        }
     },
     { timestamps: true }
 );

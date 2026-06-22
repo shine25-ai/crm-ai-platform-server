@@ -1,5 +1,6 @@
 const Approval = require('./approval.model');
 const User = require('../users/user.model');
+const Employee = require('../employees/employee.model');
 const AppError = require('../../shared/utils/appError');
 const notificationService = require('../notifications/notification.service');
 const { logActivity } = require('../../shared/services/audit.service');
@@ -21,7 +22,10 @@ const createApproval = async (data, user) => {
         requestData: data.requestData || {}
     });
 
-    const approvers = await User.find({ status: 'Active' }).populate('roleId');
+    // Notify all HR / Admin / Super Admin users
+    const approvers = await User.find({
+        status: { $in: ['Active', 'ACTIVE'] }
+    }).populate('roleId');
     await Promise.all(
         approvers
             .filter((approver) =>
@@ -32,9 +36,14 @@ const createApproval = async (data, user) => {
             .map((approver) =>
                 notificationService.createNotification(
                     approver._id,
-                    'Approval request',
-                    `${data.requestType} is waiting for review.`,
-                    'Approval Request'
+                    'Approval Request',
+                    `${data.requestType} is waiting for your review.`,
+                    'Approval Request',
+                    {
+                        referenceId: approval._id,
+                        referenceType: 'Approval',
+                        actionUrl: '/approvals'
+                    }
                 )
             )
     );
@@ -64,6 +73,32 @@ const updateApproval = async (id, data, user) => {
     }
 
     await approval.save();
+
+    // Notify the requesting employee when a decision is made
+    if (['Approved', 'Rejected'].includes(data.status)) {
+        try {
+            const emp = await Employee.findById(approval.employeeId);
+            if (emp?.userId) {
+                await notificationService.createNotification(
+                    emp.userId,
+                    `Approval ${data.status}`,
+                    `Your ${approval.requestType} has been ${data.status.toLowerCase()}.`,
+                    'Approval Request',
+                    {
+                        referenceId: approval._id,
+                        referenceType: 'Approval',
+                        actionUrl: '/approvals'
+                    }
+                );
+            }
+        } catch (notifyErr) {
+            console.error(
+                '[Approval Service] Failed to notify employee:',
+                notifyErr.message
+            );
+        }
+    }
+
     await logActivity(
         user.userId,
         'UPDATE',

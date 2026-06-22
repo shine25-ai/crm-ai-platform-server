@@ -2,76 +2,34 @@ const express = require('express');
 const router = express.Router();
 const chatController = require('./chat.controller');
 const authMiddleware = require('../../shared/middleware/auth.middleware');
+const { chatUpload } = require('../../shared/middleware/upload.middleware');
 
 router.use(authMiddleware);
 
-/**
- * @swagger
- * tags:
- *   name: Chat
- *   description: Real-time messaging and chat history logs APIs
- */
-
-/**
- * @swagger
- * /api/chat/summary:
- *   get:
- *     summary: Retrieve chat summaries (unread message counts & last message previews) for all conversation threads
- *     tags: [Chat]
- *     security:
- *       - bearerAuth: []
- *     responses:
- *       200:
- *         description: Chat summaries retrieved successfully
- *       401:
- *         description: Unauthorized
- */
+// Contacts & Summary Directory
+router.get('/contacts', chatController.getContacts);
 router.get('/summary', chatController.getChatSummary);
 
-/**
- * @swagger
- * /api/chat/messages/{otherUserId}:
- *   get:
- *     summary: Retrieve full conversational message history with a specific peer user
- *     tags: [Chat]
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: otherUserId
- *         required: true
- *         schema:
- *           type: string
- *         description: The user ID of the conversation partner
- *     responses:
- *       200:
- *         description: Messages list retrieved successfully
- *       401:
- *         description: Unauthorized
- */
+// Messaging history & manual endpoints
 router.get('/messages/:otherUserId', chatController.getMessages);
-
-/**
- * @swagger
- * /api/chat/mark-read/{senderId}:
- *   post:
- *     summary: Mark all unread messages received from a specific user as read
- *     tags: [Chat]
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: senderId
- *         required: true
- *         schema:
- *           type: string
- *         description: The user ID of the sender whose messages are read
- *     responses:
- *       200:
- *         description: Messages marked read successfully
- *       401:
- *         description: Unauthorized
- */
 router.post('/mark-read/:senderId', chatController.markRead);
+router.post('/send', chatUpload.single('file'), chatController.sendMessage);
+
+// Message Reactions
+router.post('/reactions', chatController.toggleReaction);
+
+// Files Uploading
+router.post(
+    '/upload',
+    chatUpload.single('file'),
+    chatController.uploadAttachment
+);
+
+// Group Chat CRUD and Management
+router.post('/groups', chatController.createGroup);
+router.put('/groups/:id', chatController.updateGroup);
+router.get('/groups/:id/members', chatController.getGroupMembers);
+router.post('/groups/:id/members', chatController.addGroupMembers);
+router.delete('/groups/:id/members/:userId', chatController.removeGroupMember);
 
 module.exports = router;

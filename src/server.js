@@ -1,3 +1,11 @@
+// Polyfill global crypto for older Node versions (such as Node v16.20.2)
+if (typeof global.crypto === 'undefined') {
+    const crypto = require('crypto');
+    global.crypto = crypto.webcrypto || crypto;
+    if (global.crypto && !global.crypto.randomUUID) {
+        global.crypto.randomUUID = crypto.randomUUID;
+    }
+}
 require('./config/env');
 const http = require('http');
 const app = require('./app');
@@ -6,6 +14,9 @@ const { initSocket } = require('./config/socket');
 const createDefaultRole = require('./seeders/roleSeeder.js');
 const seedPermissions = require('./seeders/permissionSeeder.js');
 const createDefaultAdmin = require('./seeders/superAdminSeeder.js');
+const {
+    scheduleTaskDeadlineReminders
+} = require('./shared/services/taskDeadline.cron');
 // const seedDepartmentsAndEmployees = require('./seeders/departmentAndEmployeeSeeder.js');
 const PORT = process.env.PORT || 5000;
 
@@ -27,6 +38,8 @@ const startServer = async () => {
 
         server.listen(PORT, () => {
             console.log(`🚀 Server running on port ${PORT}`);
+            // Start background cron jobs
+            scheduleTaskDeadlineReminders();
         });
     } catch (error) {
         console.error('Server startup failed:', error);
