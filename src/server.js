@@ -14,9 +14,13 @@ const { initSocket } = require('./config/socket');
 const createDefaultRole = require('./seeders/roleSeeder.js');
 const seedPermissions = require('./seeders/permissionSeeder.js');
 const createDefaultAdmin = require('./seeders/superAdminSeeder.js');
+const seedWorkflows = require('./seeders/workflowSeeder.js');
 const {
     scheduleTaskDeadlineReminders
 } = require('./shared/services/taskDeadline.cron');
+const {
+    scheduleApprovalEscalations
+} = require('./shared/services/approvalEscalation.cron');
 // const seedDepartmentsAndEmployees = require('./seeders/departmentAndEmployeeSeeder.js');
 const PORT = process.env.PORT || 5000;
 
@@ -29,6 +33,7 @@ const startServer = async () => {
         await createDefaultRole();
         await seedPermissions();
         await createDefaultAdmin();
+        await seedWorkflows();
 
         // await seedDepartmentsAndEmployees();
 
@@ -40,6 +45,7 @@ const startServer = async () => {
             console.log(`🚀 Server running on port ${PORT}`);
             // Start background cron jobs
             scheduleTaskDeadlineReminders();
+            scheduleApprovalEscalations();
         });
     } catch (error) {
         console.error('Server startup failed:', error);
