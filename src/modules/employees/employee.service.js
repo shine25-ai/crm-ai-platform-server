@@ -5,6 +5,9 @@ const User = require('../users/user.model');
 const AppError = require('../../shared/utils/appError');
 const emailService = require('../../shared/services/email.service');
 
+const getFrontendUrl = () =>
+    (process.env.FRONTEND_URL || 'http://localhost:5173').replace(/\/$/, '');
+
 const hasRequiredHrData = (employee) =>
     Boolean(
         employee.employmentInfo?.joinDate &&
@@ -102,7 +105,7 @@ const createEmployee = async (empData) => {
     });
 
     // Build onboarding URL and send email (non-blocking — don't fail creation on email error)
-    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5174';
+    const frontendUrl = getFrontendUrl();
     const onboardingUrl = `${frontendUrl}/onboarding/${onboardingToken}`;
 
     try {
@@ -153,7 +156,7 @@ const resendOnboardingEmail = async (id) => {
     employee.onboardingTokenExpires = onboardingTokenExpires;
     await employee.save();
 
-    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5174';
+    const frontendUrl = getFrontendUrl();
     const onboardingUrl = `${frontendUrl}/onboarding/${onboardingToken}`;
 
     await emailService.sendOnboardingEmail(

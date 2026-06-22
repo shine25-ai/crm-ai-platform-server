@@ -87,7 +87,10 @@ const forgotPassword = async (email) => {
     user.resetPasswordExpires = Date.now() + 3600000;
     await user.save();
 
-    const resetUrl = `${process.env.FRONTEND_URL || 'http://localhost:5174'}/reset-password?token=${resetToken}`;
+    const frontendUrl = (
+        process.env.FRONTEND_URL || 'http://localhost:5173'
+    ).replace(/\/$/, '');
+    const resetUrl = `${frontendUrl}/reset-password?token=${resetToken}`;
 
     try {
         const info = await emailService.sendPasswordResetEmail(

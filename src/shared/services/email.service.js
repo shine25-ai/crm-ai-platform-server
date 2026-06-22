@@ -426,7 +426,9 @@ const sendAccountActivationEmail = async (
     designation
 ) => {
     const firstName = (name || '').split(' ')[0];
-    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5174';
+    const frontendUrl = (
+        process.env.FRONTEND_URL || 'http://localhost:5173'
+    ).replace(/\/$/, '');
     const loginUrl = `${frontendUrl}/login`;
 
     const mailOptions = {
@@ -555,6 +557,7 @@ const sendAccountActivationEmail = async (
 };
 
 module.exports = {
+    verifySmtpConnection,
     sendPasswordResetEmail,
     sendOnboardingEmail,
     sendOnboardingCompletionNotification,
