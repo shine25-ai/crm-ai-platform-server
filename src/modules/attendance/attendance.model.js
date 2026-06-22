@@ -31,7 +31,9 @@ const attendanceSchema = new mongoose.Schema(
             latitude: Number,
             longitude: Number,
             address: String,
-            validated: { type: Boolean, default: false }
+            validated: { type: Boolean, default: false },
+            distanceFromOfficeMeters: Number,
+            validationMessage: String
         },
         attendanceStatus: {
             type: String,

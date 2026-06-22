@@ -31,6 +31,73 @@ const recalculateTotals = (record) => {
         : 0;
 };
 
+const toRadians = (value) => (value * Math.PI) / 180;
+
+const distanceInMeters = (from, to) => {
+    const earthRadius = 6371000;
+    const dLat = toRadians(to.latitude - from.latitude);
+    const dLon = toRadians(to.longitude - from.longitude);
+    const lat1 = toRadians(from.latitude);
+    const lat2 = toRadians(to.latitude);
+
+    const a =
+        Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+        Math.cos(lat1) *
+            Math.cos(lat2) *
+            Math.sin(dLon / 2) *
+            Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return earthRadius * c;
+};
+
+const validateLocation = (location = {}) => {
+    const latitude = Number(location.latitude);
+    const longitude = Number(location.longitude);
+
+    if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+        return {
+            ...location,
+            validated: false,
+            validationMessage: 'Latitude and longitude are required'
+        };
+    }
+
+    const officeLatitude = Number(process.env.ATTENDANCE_OFFICE_LATITUDE);
+    const officeLongitude = Number(process.env.ATTENDANCE_OFFICE_LONGITUDE);
+    const allowedRadius = Number(process.env.ATTENDANCE_ALLOWED_RADIUS_METERS);
+
+    if (
+        !Number.isFinite(officeLatitude) ||
+        !Number.isFinite(officeLongitude) ||
+        !Number.isFinite(allowedRadius)
+    ) {
+        return {
+            ...location,
+            latitude,
+            longitude,
+            validated: Boolean(location.validated),
+            validationMessage: 'GPS policy not configured'
+        };
+    }
+
+    const distance = distanceInMeters(
+        { latitude: officeLatitude, longitude: officeLongitude },
+        { latitude, longitude }
+    );
+
+    return {
+        ...location,
+        latitude,
+        longitude,
+        distanceFromOfficeMeters: Math.round(distance),
+        validated: distance <= allowedRadius,
+        validationMessage:
+            distance <= allowedRadius
+                ? 'Within allowed attendance radius'
+                : `Outside allowed attendance radius of ${allowedRadius} meters`
+    };
+};
+
 const checkIn = async (
     employeeId,
     shiftDate,
@@ -46,7 +113,7 @@ const checkIn = async (
         employeeId,
         shiftDate,
         checkIn: toDateTime(shiftDate, checkInTime),
-        location: location || {},
+        location: validateLocation(location),
         attendanceStatus: 'Present'
     });
     await logActivity(userId, 'CHECK_IN', 'Attendance', 'Checked in for shift');
@@ -116,23 +183,55 @@ const breakEnd = async (employeeId, userId) => {
     return record;
 };
 
-const getLogsByEmployee = async (employeeId) => {
-    return await Attendance.find({ employeeId }).sort({
-        shiftDate: -1,
-        createdAt: -1
-    });
+const buildAttendanceQuery = (filters = {}, fallbackEmployeeId = null) => {
+    const query = {};
+
+    if (filters.employeeId) {
+        query.employeeId = filters.employeeId;
+    } else if (fallbackEmployeeId) {
+        query.employeeId = fallbackEmployeeId;
+    }
+
+    if (filters.from || filters.to) {
+        query.shiftDate = {};
+        if (filters.from) query.shiftDate.$gte = filters.from;
+        if (filters.to) query.shiftDate.$lte = filters.to;
+    }
+
+    if (filters.month || filters.year) {
+        const monthValue = String(
+            filters.month || new Date().getMonth() + 1
+        ).padStart(2, '0');
+        const yearValue = String(filters.year || new Date().getFullYear());
+        query.shiftDate = { $regex: `^${yearValue}-${monthValue}` };
+    }
+
+    return query;
 };
 
-const getMonthlyReport = async (employeeId, month, year) => {
+const getLogsByEmployee = async (employeeId, filters = {}) => {
+    return await Attendance.find(buildAttendanceQuery(filters, employeeId))
+        .populate('employeeId', 'name employeeId email designation')
+        .sort({
+            shiftDate: -1,
+            createdAt: -1
+        });
+};
+
+const getMonthlyReport = async (employeeId, month, year, filters = {}) => {
     const monthValue = String(month || new Date().getMonth() + 1).padStart(
         2,
         '0'
     );
     const yearValue = String(year || new Date().getFullYear());
-    const records = await Attendance.find({
-        employeeId,
-        shiftDate: { $regex: `^${yearValue}-${monthValue}` }
-    }).sort({ shiftDate: 1 });
+    const records = await Attendance.find(
+        buildAttendanceQuery(
+            { ...filters, month: monthValue, year: yearValue },
+            employeeId
+        )
+    )
+        .populate('employeeId', 'name employeeId email designation')
+        .sort({ shiftDate: 1 });
 
     return {
         month: monthValue,
