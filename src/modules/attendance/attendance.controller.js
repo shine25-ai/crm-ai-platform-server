@@ -3,6 +3,9 @@ const ApiResponse = require('../../shared/utils/response');
 const User = require('../users/user.model');
 const Employee = require('../employees/employee.model');
 
+const canViewAllAttendance = (req) =>
+    ['SUPER_ADMIN', 'ADMIN', 'HR'].includes(req.user?.roleCode);
+
 /**
  * Resolve employeeId dynamically from request session or database record
  */
@@ -131,7 +134,10 @@ const getMyLogs = async (req, res, next) => {
                 message: 'Could not resolve a valid Employee profile or User ID'
             });
         }
-        const logs = await attendanceService.getLogsByEmployee(employeeId);
+        const logs = await attendanceService.getLogsByEmployee(
+            employeeId,
+            req.query
+        );
         return ApiResponse.success(
             res,
             'Attendance logs retrieved successfully',
@@ -142,13 +148,37 @@ const getMyLogs = async (req, res, next) => {
     }
 };
 
+const getHistory = async (req, res, next) => {
+    try {
+        const employeeId = canViewAllAttendance(req)
+            ? req.query.employeeId || null
+            : await resolveEmployeeId(req);
+
+        const logs = await attendanceService.getLogsByEmployee(
+            employeeId,
+            req.query
+        );
+
+        return ApiResponse.success(
+            res,
+            'Attendance history retrieved successfully',
+            logs
+        );
+    } catch (error) {
+        next(error);
+    }
+};
+
 const getMonthlyReport = async (req, res, next) => {
     try {
-        const employeeId = await resolveEmployeeId(req);
+        const employeeId = canViewAllAttendance(req)
+            ? req.query.employeeId || null
+            : await resolveEmployeeId(req);
         const report = await attendanceService.getMonthlyReport(
             employeeId,
             req.query.month,
-            req.query.year
+            req.query.year,
+            req.query
         );
         return ApiResponse.success(
             res,
@@ -166,5 +196,6 @@ module.exports = {
     breakStart,
     breakEnd,
     getMyLogs,
+    getHistory,
     getMonthlyReport
 };

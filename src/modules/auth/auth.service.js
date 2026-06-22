@@ -8,6 +8,7 @@ const Employee = require('../employees/employee.model');
 const AppError = require('../../shared/utils/appError');
 const { generateToken } = require('../../shared/utils/jwt');
 const emailService = require('../../shared/services/email.service');
+const logger = require('../../shared/utils/logger');
 
 const getRolePermissions = async (role) => {
     if (!role) return [];
@@ -68,7 +69,15 @@ const login = async (email, password) => {
 };
 
 const forgotPassword = async (email) => {
-    const user = await User.findOne({ email });
+    const normalizedEmail = String(email || '')
+        .trim()
+        .toLowerCase();
+
+    if (!normalizedEmail) {
+        throw new AppError('Email is required.', 400);
+    }
+
+    const user = await User.findOne({ email: normalizedEmail });
     if (!user) {
         throw new AppError('User with this email does not exist.', 404);
     }
@@ -78,9 +87,33 @@ const forgotPassword = async (email) => {
     user.resetPasswordExpires = Date.now() + 3600000;
     await user.save();
 
-    const resetUrl = `${process.env.FRONTEND_URL || 'http://localhost:5174'}/reset-password?token=${resetToken}`;
-    await emailService.sendPasswordResetEmail(user.email, resetUrl);
-    return true;
+    const frontendUrl = (
+        process.env.FRONTEND_URL || 'http://localhost:5173'
+    ).replace(/\/$/, '');
+    const resetUrl = `${frontendUrl}/reset-password?token=${resetToken}`;
+
+    try {
+        const info = await emailService.sendPasswordResetEmail(
+            user.email,
+            resetUrl
+        );
+        logger.info(
+            `[Auth Service] Password reset requested for ${user.email}. Message ID: ${info.messageId}`
+        );
+        return true;
+    } catch (error) {
+        user.resetPasswordToken = null;
+        user.resetPasswordExpires = null;
+        await user.save();
+
+        logger.error(
+            `[Auth Service] Password reset email delivery failed for ${user.email}: ${error.message}`
+        );
+        throw new AppError(
+            'Unable to send password reset email. Please contact support or try again later.',
+            502
+        );
+    }
 };
 
 const resetPassword = async (token, password) => {
