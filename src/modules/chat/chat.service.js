@@ -608,6 +608,68 @@ const removeGroupMember = async (userId, groupId, targetUserId) => {
 };
 
 /**
+ * Delete a group conversation and all related chat records
+ */
+const deleteGroup = async (userId, groupId) => {
+    const group = await ChatGroup.findOne({ conversationId: groupId });
+    if (!group) throw new AppError('Group not found', 404);
+
+    if (String(group.createdBy) !== String(userId)) {
+        throw new AppError(
+            'Forbidden: Only group creator can delete group',
+            403
+        );
+    }
+
+    const conversation = await ChatConversation.findById(groupId);
+    if (!conversation || conversation.type !== 'group') {
+        throw new AppError('Group conversation not found', 404);
+    }
+
+    const participants = await ChatParticipant.find({
+        conversationId: groupId
+    }).lean();
+    const participantIds = participants.map((p) => String(p.userId));
+
+    const messages = await ChatMessage.find({ conversationId: groupId })
+        .select('_id')
+        .lean();
+    const messageIds = messages.map((m) => m._id);
+
+    if (messageIds.length > 0) {
+        await Promise.all([
+            ChatAttachment.deleteMany({ messageId: { $in: messageIds } }),
+            ChatMessageRead.deleteMany({ messageId: { $in: messageIds } }),
+            ChatReaction.deleteMany({ messageId: { $in: messageIds } })
+        ]);
+    }
+
+    await Promise.all([
+        ChatMessage.deleteMany({ conversationId: groupId }),
+        ChatParticipant.deleteMany({ conversationId: groupId }),
+        ChatGroup.deleteOne({ conversationId: groupId }),
+        ChatConversation.deleteOne({ _id: groupId })
+    ]);
+
+    const { getIo } = require('../../config/socket');
+    const io = getIo();
+    if (io) {
+        participantIds.forEach((participantId) => {
+            io.to(participantId).emit('group_deleted', {
+                conversationId: String(groupId),
+                groupName: group.groupName
+            });
+        });
+        io.to(String(groupId)).emit('group_deleted', {
+            conversationId: String(groupId),
+            groupName: group.groupName
+        });
+    }
+
+    return { success: true, conversationId: groupId };
+};
+
+/**
  * Add reaction on a message
  */
 const toggleReaction = async (userId, messageId, reaction) => {
@@ -663,6 +725,7 @@ module.exports = {
     updateGroup,
     addGroupMembers,
     removeGroupMember,
+    deleteGroup,
     toggleReaction,
     getGroupMembers
 };

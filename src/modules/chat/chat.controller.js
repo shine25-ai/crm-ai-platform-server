@@ -177,6 +177,20 @@ const removeGroupMember = async (req, res, next) => {
 };
 
 /**
+ * Delete group
+ */
+const deleteGroup = async (req, res, next) => {
+    try {
+        const userId = req.user.userId;
+        const { id } = req.params;
+        const result = await chatService.deleteGroup(userId, id);
+        return ApiResponse.success(res, 'Group deleted successfully', result);
+    } catch (error) {
+        next(error);
+    }
+};
+
+/**
  * Fetch conversational members of a group chat
  */
 const getGroupMembers = async (req, res, next) => {
@@ -252,6 +266,7 @@ module.exports = {
     updateGroup,
     addGroupMembers,
     removeGroupMember,
+    deleteGroup,
     toggleReaction,
     uploadAttachment,
     getGroupMembers
