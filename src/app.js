@@ -24,6 +24,8 @@ const approvalRoutes = require('./modules/approvals/approval.routes');
 const eventRoutes = require('./modules/events/event.routes');
 const analyticsRoutes = require('./modules/analytics/analytics.routes');
 const activityLogRoutes = require('./modules/activityLogs/activityLog.routes');
+const customerRoutes = require('./modules/customers/customer.routes');
+const salesRoutes = require('./modules/sales/sales.routes');
 
 const app = express();
 
@@ -58,6 +60,8 @@ app.use('/api/approvals', approvalRoutes);
 app.use('/api/events', eventRoutes);
 app.use('/api/analytics', analyticsRoutes);
 app.use('/api/activity-logs', activityLogRoutes);
+app.use('/api/customers', customerRoutes);
+app.use('/api/sales', salesRoutes);
 
 app.use('/api/chat', chatRoutes);
 

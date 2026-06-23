@@ -14,6 +14,8 @@ const { initSocket } = require('./config/socket');
 const createDefaultRole = require('./seeders/roleSeeder.js');
 const seedPermissions = require('./seeders/permissionSeeder.js');
 const createDefaultAdmin = require('./seeders/superAdminSeeder.js');
+const seedCustomers = require('./seeders/customerSeeder.js');
+const seedSales = require('./seeders/salesSeeder.js');
 const {
     scheduleTaskDeadlineReminders
 } = require('./shared/services/taskDeadline.cron');
@@ -29,6 +31,8 @@ const startServer = async () => {
         await createDefaultRole();
         await seedPermissions();
         await createDefaultAdmin();
+        await seedCustomers();
+        await seedSales();
 
         // await seedDepartmentsAndEmployees();
 
