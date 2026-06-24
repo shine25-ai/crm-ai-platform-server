@@ -26,6 +26,7 @@ const analyticsRoutes = require('./modules/analytics/analytics.routes');
 const activityLogRoutes = require('./modules/activityLogs/activityLog.routes');
 const customerRoutes = require('./modules/customers/customer.routes');
 const salesRoutes = require('./modules/sales/sales.routes');
+const leadRoutes = require('./modules/leads/lead.routes');
 
 const app = express();
 
@@ -62,6 +63,7 @@ app.use('/api/analytics', analyticsRoutes);
 app.use('/api/activity-logs', activityLogRoutes);
 app.use('/api/customers', customerRoutes);
 app.use('/api/sales', salesRoutes);
+app.use('/api/leads', leadRoutes);
 
 app.use('/api/chat', chatRoutes);
 
