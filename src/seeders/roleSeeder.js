@@ -24,6 +24,8 @@ const roleDefinitions = [
             'leads:read',
             'leads:write',
             'customers:read',
+            'sales:read',
+            'sales:write',
             'campaigns:read',
             'tasks:read',
             'tasks:write',
