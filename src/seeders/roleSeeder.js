@@ -91,6 +91,44 @@ const roleDefinitions = [
             'calendar:read',
             'settings:read'
         ]
+    },
+    {
+        roleCode: 'SALES_MANAGER',
+        roleName: 'Sales Manager',
+        isSystemRole: true,
+        description:
+            'Sales team manager with lead assignment and conversion access',
+        permissions: [
+            'dashboard:view',
+            'users:read',
+            'leads:read',
+            'leads:write',
+            'leads:assign',
+            'leads:convert',
+            'customers:read',
+            'customers:write',
+            'notifications:read',
+            'notifications:write',
+            'chat:read',
+            'chat:write',
+            'settings:read'
+        ]
+    },
+    {
+        roleCode: 'SALES_EXECUTIVE',
+        roleName: 'Sales Executive',
+        isSystemRole: true,
+        description:
+            'Sales representative to create, view and update assigned leads',
+        permissions: [
+            'dashboard:view',
+            'leads:read',
+            'leads:write',
+            'customers:read',
+            'notifications:read',
+            'chat:read',
+            'chat:write'
+        ]
     }
 ];
 

@@ -167,11 +167,31 @@ const deleteFileFromS3 = async (urlOrKey) => {
     }
 };
 
+const uploadLeadDocumentToS3 = async (file, leadId) => {
+    const extension = path.extname(file.originalname).toLowerCase();
+    const baseName = path.basename(file.originalname, extension);
+    const key = `lead-documents/${leadId}/${Date.now()}-${crypto.randomUUID()}-${sanitizeFileName(
+        baseName
+    )}${extension}`;
+
+    await s3Client.send(
+        new PutObjectCommand({
+            Bucket: bucketName,
+            Key: key,
+            Body: file.buffer,
+            ContentType: file.mimetype
+        })
+    );
+
+    return `${bucketBaseUrl}${key}`;
+};
+
 module.exports = {
     uploadProfilePhotoToS3,
     uploadChatAttachmentToS3,
     uploadEmployeeDocumentToS3,
     uploadCustomerDocumentToS3,
     uploadTaskAttachmentToS3,
+    uploadLeadDocumentToS3,
     deleteFileFromS3
 };
