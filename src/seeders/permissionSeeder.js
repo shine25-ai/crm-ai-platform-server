@@ -22,7 +22,10 @@ const permissionCatalog = [
     ['leads:read', 'Read Leads', 'Leads'],
     ['leads:write', 'Write Leads', 'Leads'],
     ['leads:delete', 'Delete Leads', 'Leads'],
+    ['leads:assign', 'Assign Leads', 'Leads'],
+    ['leads:convert', 'Convert Leads', 'Leads'],
     ['customers:read', 'Read Customers', 'Customers'],
+    ['customers:write', 'Write Customers', 'Customers'],
     ['campaigns:read', 'Read Campaigns', 'Campaigns'],
     ['tasks:read', 'Read Tasks', 'Tasks'],
     ['tasks:write', 'Write Tasks', 'Tasks'],
@@ -80,6 +83,8 @@ const rolePermissions = {
         'departments:read',
         'employees:read',
         'employees:write',
+        'leads:read',
+        'leads:write',
         'tasks:read',
         'tasks:write',
         'attendance:read',
@@ -98,6 +103,8 @@ const rolePermissions = {
     EMPLOYEE: [
         'dashboard:view',
         'employees:read',
+        'leads:read',
+        'leads:write',
         'tasks:read',
         'tasks:write',
         'attendance:read',
@@ -109,6 +116,30 @@ const rolePermissions = {
         'approvals:write',
         'calendar:read',
         'settings:read'
+    ],
+    SALES_MANAGER: [
+        'dashboard:view',
+        'users:read',
+        'leads:read',
+        'leads:write',
+        'leads:assign',
+        'leads:convert',
+        'customers:read',
+        'customers:write',
+        'notifications:read',
+        'notifications:write',
+        'chat:read',
+        'chat:write',
+        'settings:read'
+    ],
+    SALES_EXECUTIVE: [
+        'dashboard:view',
+        'leads:read',
+        'leads:write',
+        'customers:read',
+        'notifications:read',
+        'chat:read',
+        'chat:write'
     ]
 };
 
@@ -183,6 +214,16 @@ const seedPermissions = async () => {
         await syncRolePermissions(
             'EMPLOYEE',
             rolePermissions.EMPLOYEE,
+            seededPerms
+        );
+        await syncRolePermissions(
+            'SALES_MANAGER',
+            rolePermissions.SALES_MANAGER,
+            seededPerms
+        );
+        await syncRolePermissions(
+            'SALES_EXECUTIVE',
+            rolePermissions.SALES_EXECUTIVE,
             seededPerms
         );
     } catch (error) {
