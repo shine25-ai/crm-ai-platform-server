@@ -14,4 +14,17 @@ const getDashboardSummary = async (req, res, next) => {
     }
 };
 
-module.exports = { getDashboardSummary };
+const getSalesAnalytics = async (req, res, next) => {
+    try {
+        const analytics = await analyticsService.getSalesAnalytics(req.query);
+        return ApiResponse.success(
+            res,
+            'Sales analytics retrieved successfully',
+            analytics
+        );
+    } catch (error) {
+        next(error);
+    }
+};
+
+module.exports = { getDashboardSummary, getSalesAnalytics };

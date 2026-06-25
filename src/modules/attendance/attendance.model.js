@@ -49,6 +49,16 @@ const attendanceSchema = new mongoose.Schema(
                 }
             ],
             default: []
+        },
+        leaveMeta: {
+            approvalId: {
+                type: mongoose.Schema.Types.ObjectId,
+                ref: 'Approval',
+                default: null
+            },
+            leaveTypeName: { type: String, default: '' },
+            durationType: { type: String, default: '' },
+            calculatedDays: { type: Number, default: 0 }
         }
     },
     { timestamps: true }

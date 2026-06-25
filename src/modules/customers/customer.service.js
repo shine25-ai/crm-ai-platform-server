@@ -4,6 +4,7 @@ const {
     uploadCustomerDocumentToS3,
     deleteFileFromS3
 } = require('../../shared/services/s3.service');
+const communicationService = require('../communications/communication.service');
 
 const populateCustomer = (query) =>
     query
@@ -28,7 +29,8 @@ const normalizeCustomerPayload = (payload = {}) => ({
     orderSummary: payload.orderSummary,
     openOpportunities: payload.openOpportunities,
     followUps: payload.followUps,
-    meetings: payload.meetings
+    meetings: payload.meetings,
+    projectEngagements: payload.projectEngagements
 });
 
 const removeUndefined = (value) =>
@@ -63,6 +65,8 @@ const listCustomers = async (filters = {}) => {
 const getCustomerById = async (id) => {
     const customer = await populateCustomer(Customer.findById(id)).lean();
     if (!customer) throw new AppError('Customer not found', 404);
+    customer.communicationTimeline =
+        await communicationService.getCommunicationTimeline('Customer', id);
     return customer;
 };
 
@@ -273,6 +277,192 @@ const addOpportunity = async (customerId, payload) => {
     return getCustomerById(customerId);
 };
 
+const nextInvoiceNumber = (customer) => {
+    const invoiceCount = (customer.projectEngagements || []).reduce(
+        (count, engagement) => count + (engagement.invoices || []).length,
+        0
+    );
+    return `INV-${new Date().getFullYear()}-${String(invoiceCount + 1).padStart(4, '0')}`;
+};
+
+const calculateInvoiceAmounts = (amount, taxRate = 18) => {
+    const taxableAmount = Number(amount || 0);
+    const taxAmount = Math.round((taxableAmount * Number(taxRate || 0)) / 100);
+    return {
+        amount: taxableAmount,
+        taxableAmount,
+        taxDetails: {
+            label: 'GST',
+            rate: Number(taxRate || 0),
+            amount: taxAmount
+        },
+        totalAmount: taxableAmount + taxAmount
+    };
+};
+
+const addProjectEngagement = async (customerId, payload) => {
+    if (!payload.projectName?.trim()) {
+        throw new AppError('Project name is required', 400);
+    }
+
+    const customer = await Customer.findById(customerId);
+    if (!customer) throw new AppError('Customer not found', 404);
+
+    customer.projectEngagements.push({
+        projectName: payload.projectName,
+        projectValue: Number(payload.projectValue || 0),
+        contractStartDate: payload.contractStartDate || null,
+        contractEndDate: payload.contractEndDate || null,
+        billingFrequency: payload.billingFrequency || 'Milestone',
+        paymentTerms: payload.paymentTerms || '',
+        milestones: payload.milestones || [],
+        contractDocuments: payload.contractDocuments || [],
+        status: payload.status || 'Active'
+    });
+
+    await customer.save();
+    return getCustomerById(customerId);
+};
+
+const generateInvoices = async (customerId, engagementId, payload = {}) => {
+    const customer = await Customer.findById(customerId);
+    if (!customer) throw new AppError('Customer not found', 404);
+
+    const engagement = customer.projectEngagements.id(engagementId);
+    if (!engagement) throw new AppError('Project engagement not found', 404);
+
+    const taxRate = Number(payload.taxRate ?? 18);
+    const dueDays = Number(payload.dueDays ?? 15);
+    const invoiceDate = payload.invoiceDate
+        ? new Date(payload.invoiceDate)
+        : new Date();
+    const buildDueDate = (baseDate = invoiceDate) => {
+        const dueDate = new Date(baseDate);
+        dueDate.setDate(dueDate.getDate() + dueDays);
+        return dueDate;
+    };
+
+    const generated = [];
+
+    if (engagement.billingFrequency === 'Milestone') {
+        engagement.milestones.forEach((milestone) => {
+            if (milestone.status === 'Invoiced' || milestone.status === 'Paid')
+                return;
+            const baseAmount =
+                (Number(engagement.projectValue || 0) *
+                    Number(milestone.percentage || 0)) /
+                100;
+            const invoice = {
+                invoiceNumber: nextInvoiceNumber(customer),
+                projectName: engagement.projectName,
+                invoiceDate,
+                dueDate: buildDueDate(milestone.dueDate || invoiceDate),
+                paymentStatus: 'Pending',
+                milestoneName: milestone.name,
+                billingFrequency: engagement.billingFrequency,
+                notes: `${milestone.percentage}% milestone invoice`,
+                ...calculateInvoiceAmounts(baseAmount, taxRate)
+            };
+            engagement.invoices.push(invoice);
+            milestone.status = 'Invoiced';
+            generated.push(invoice);
+        });
+    } else {
+        const frequencyMonths = {
+            Monthly: 1,
+            Quarterly: 3,
+            Annual: 12
+        };
+        const months = frequencyMonths[engagement.billingFrequency] || 1;
+        const installmentAmount = Number(
+            payload.amount || engagement.projectValue || 0
+        );
+        const invoice = {
+            invoiceNumber: nextInvoiceNumber(customer),
+            projectName: engagement.projectName,
+            invoiceDate,
+            dueDate: buildDueDate(invoiceDate),
+            paymentStatus: 'Pending',
+            billingFrequency: engagement.billingFrequency,
+            notes: `${engagement.billingFrequency} recurring invoice for next ${months} month cycle`,
+            ...calculateInvoiceAmounts(installmentAmount, taxRate)
+        };
+        engagement.invoices.push(invoice);
+        generated.push(invoice);
+    }
+
+    customer.revenueSummary.outstandingAmount =
+        Number(customer.revenueSummary.outstandingAmount || 0) +
+        generated.reduce(
+            (sum, invoice) => sum + Number(invoice.totalAmount || 0),
+            0
+        );
+
+    await customer.save();
+    return getCustomerById(customerId);
+};
+
+const addPaymentRecord = async (customerId, engagementId, payload) => {
+    if (!payload.amount) throw new AppError('Payment amount is required', 400);
+
+    const customer = await Customer.findById(customerId);
+    if (!customer) throw new AppError('Customer not found', 404);
+
+    const engagement = customer.projectEngagements.id(engagementId);
+    if (!engagement) throw new AppError('Project engagement not found', 404);
+
+    const amount = Number(payload.amount || 0);
+    engagement.payments.push({
+        invoiceNumber: payload.invoiceNumber || '',
+        paymentDate: payload.paymentDate || new Date(),
+        amount,
+        paymentMode: payload.paymentMode || 'Bank Transfer',
+        referenceNumber: payload.referenceNumber || '',
+        notes: payload.notes || ''
+    });
+
+    if (payload.invoiceNumber) {
+        const invoice = engagement.invoices.find(
+            (item) => item.invoiceNumber === payload.invoiceNumber
+        );
+        if (invoice) {
+            invoice.paymentStatus =
+                amount >= invoice.totalAmount ? 'Paid' : 'Partially Paid';
+        }
+    }
+
+    customer.revenueSummary.totalRevenue =
+        Number(customer.revenueSummary.totalRevenue || 0) + amount;
+    customer.revenueSummary.outstandingAmount = Math.max(
+        0,
+        Number(customer.revenueSummary.outstandingAmount || 0) - amount
+    );
+    customer.revenueSummary.lastTransactionDate =
+        payload.paymentDate || new Date();
+
+    await customer.save();
+    return getCustomerById(customerId);
+};
+
+const getInvoicePreview = async (customerId, engagementId, invoiceId) => {
+    const customer = await Customer.findById(customerId)
+        .populate('assignedTo', 'name email mobile department')
+        .lean();
+    if (!customer) throw new AppError('Customer not found', 404);
+
+    const engagement = (customer.projectEngagements || []).find(
+        (item) => String(item._id) === String(engagementId)
+    );
+    if (!engagement) throw new AppError('Project engagement not found', 404);
+
+    const invoice = (engagement.invoices || []).find(
+        (item) => String(item._id) === String(invoiceId)
+    );
+    if (!invoice) throw new AppError('Invoice not found', 404);
+
+    return { customer, engagement, invoice };
+};
+
 module.exports = {
     listCustomers,
     getCustomerById,
@@ -287,5 +477,9 @@ module.exports = {
     addFollowUp,
     addMeeting,
     addTransaction,
-    addOpportunity
+    addOpportunity,
+    addProjectEngagement,
+    generateInvoices,
+    addPaymentRecord,
+    getInvoicePreview
 };
