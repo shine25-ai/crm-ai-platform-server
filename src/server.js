@@ -19,6 +19,8 @@ const seedSales = require('./seeders/salesSeeder.js');
 const seedWorkflows = require('./seeders/workflowSeeder.js');
 const seedLeads = require('./seeders/leadSeeder.js');
 const seedCommunications = require('./seeders/communicationSeeder.js');
+const seedLeavePolicies = require('./seeders/leavePolicySeeder.js');
+const seedLeaveData = require('./seeders/leaveDataSeeder.js');
 const {
     scheduleTaskDeadlineReminders
 } = require('./shared/services/taskDeadline.cron');
@@ -45,6 +47,8 @@ const startServer = async () => {
         await seedWorkflows();
         await seedLeads();
         await seedCommunications();
+        await seedLeavePolicies();
+        await seedLeaveData();
 
         // await seedDepartmentsAndEmployees();
 

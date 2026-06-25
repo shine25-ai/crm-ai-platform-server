@@ -39,6 +39,8 @@ const roleDefinitions = [
             'chat:write',
             'approvals:read',
             'approvals:write',
+            'leave:read',
+            'leave:write',
             'calendar:read',
             'calendar:write',
             'activity:read',
@@ -67,6 +69,8 @@ const roleDefinitions = [
             'chat:write',
             'approvals:read',
             'approvals:write',
+            'leave:read',
+            'leave:write',
             'calendar:read',
             'calendar:write',
             'activity:read',
@@ -90,6 +94,7 @@ const roleDefinitions = [
             'chat:write',
             'approvals:read',
             'approvals:write',
+            'leave:read',
             'calendar:read',
             'settings:read'
         ]

@@ -16,6 +16,7 @@ const {
     validateCreateApproval,
     validateApprovalAction
 } = require('./approval.validation');
+const leaveService = require('../leave/leave.service');
 
 // Fallback search to find a HR user if manager/deptHead is not found or has no userId
 const findFallbackHRUser = async () => {
@@ -310,6 +311,13 @@ const createApproval = async (data, user) => {
         );
     }
 
+    if (data.requestType === 'Leave Request') {
+        data.requestData = await leaveService.prepareLeaveRequestPayload(
+            data,
+            emp
+        );
+    }
+
     // 4. Generate unique sequential ID
     const requestNumber = await generateRequestNumber();
 
@@ -339,6 +347,10 @@ const createApproval = async (data, user) => {
         requestData: data.requestData || {},
         currentApproverId: initialApprover
     });
+
+    if (approval.requestType === 'Leave Request') {
+        await leaveService.reserveLeaveForApproval(approval);
+    }
 
     // 7. Save transition step action
     await ApprovalAction.create({
@@ -420,6 +432,10 @@ const updateApproval = async (id, data, user) => {
         approval.currentApproverId = null;
 
         await approval.save();
+        await leaveService.releaseLeaveReservation(
+            approval,
+            'Cancelled by employee'
+        );
 
         await ApprovalAction.create({
             approvalRequestId: approval._id,
@@ -473,6 +489,10 @@ const updateApproval = async (id, data, user) => {
         approval.currentApproverId = null;
 
         await approval.save();
+        await leaveService.releaseLeaveReservation(
+            approval,
+            data.comments || 'Rejected by approver'
+        );
 
         await ApprovalAction.create({
             approvalRequestId: approval._id,
@@ -653,6 +673,7 @@ const updateApproval = async (id, data, user) => {
             approval.currentApproverId = null;
 
             await approval.save();
+            await leaveService.finalizeLeaveApproval(approval);
 
             // Notify requester employee
             if (emp.userId) {

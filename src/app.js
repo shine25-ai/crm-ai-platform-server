@@ -28,6 +28,7 @@ const customerRoutes = require('./modules/customers/customer.routes');
 const salesRoutes = require('./modules/sales/sales.routes');
 const leadRoutes = require('./modules/leads/lead.routes');
 const communicationRoutes = require('./modules/communications/communication.routes');
+const leaveRoutes = require('./modules/leave/leave.routes');
 
 const app = express();
 
@@ -66,6 +67,7 @@ app.use('/api/customers', customerRoutes);
 app.use('/api/sales', salesRoutes);
 app.use('/api/leads', leadRoutes);
 app.use('/api/communications', communicationRoutes);
+app.use('/api/leave', leaveRoutes);
 
 app.use('/api/chat', chatRoutes);
 
