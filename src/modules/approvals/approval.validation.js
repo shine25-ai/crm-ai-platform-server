@@ -70,6 +70,7 @@ const validateCreateApproval = (data) => {
             );
         }
         if (!reqData.leaveType) {
+            if (reqData.leaveTypeId || reqData.leaveTypeName) return;
             throw new AppError(
                 'Leave type is required in requestData for Leave Requests',
                 400

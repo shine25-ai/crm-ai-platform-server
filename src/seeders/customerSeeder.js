@@ -27,6 +27,97 @@ const buildDocument = (uploadedBy, documentName, documentType, fileName) => ({
     uploadedDate: daysAgo(8)
 });
 
+const buildProjectEngagement = (
+    projectName,
+    projectValue,
+    billingFrequency,
+    contractFileName
+) => {
+    const firstInvoiceAmount = Math.round(projectValue * 0.3);
+    const firstTaxAmount = Math.round(firstInvoiceAmount * 0.18);
+    const invoiceNumber = `INV-${new Date().getFullYear()}-${String(
+        Math.floor(projectValue / 1000)
+    ).padStart(4, '0')}`;
+
+    return {
+        projectName,
+        projectValue,
+        contractStartDate: daysAgo(45),
+        contractEndDate: daysFromNow(275),
+        billingFrequency,
+        paymentTerms:
+            billingFrequency === 'Milestone'
+                ? '30% advance, 40% during development, 30% on completion'
+                : `${billingFrequency} billing, due within 15 days`,
+        status: 'Active',
+        milestones:
+            billingFrequency === 'Milestone'
+                ? [
+                      {
+                          name: '30% Advance Payment',
+                          percentage: 30,
+                          dueDate: daysAgo(35),
+                          status: 'Paid'
+                      },
+                      {
+                          name: '40% During Development',
+                          percentage: 40,
+                          dueDate: daysFromNow(25),
+                          status: 'Pending'
+                      },
+                      {
+                          name: '30% On Completion',
+                          percentage: 30,
+                          dueDate: daysFromNow(95),
+                          status: 'Pending'
+                      }
+                  ]
+                : [],
+        invoices: [
+            {
+                invoiceNumber,
+                projectName,
+                invoiceDate: daysAgo(35),
+                dueDate: daysAgo(20),
+                paymentStatus: 'Paid',
+                amount: firstInvoiceAmount,
+                taxableAmount: firstInvoiceAmount,
+                taxDetails: {
+                    label: 'GST',
+                    rate: 18,
+                    amount: firstTaxAmount
+                },
+                totalAmount: firstInvoiceAmount + firstTaxAmount,
+                milestoneName:
+                    billingFrequency === 'Milestone'
+                        ? '30% Advance Payment'
+                        : '',
+                billingFrequency,
+                notes: 'Auto-generated from project payment schedule'
+            }
+        ],
+        payments: [
+            {
+                invoiceNumber,
+                paymentDate: daysAgo(18),
+                amount: firstInvoiceAmount + firstTaxAmount,
+                paymentMode: 'Bank Transfer',
+                referenceNumber: `PAY-${invoiceNumber}`,
+                notes: 'Advance payment received'
+            }
+        ],
+        contractDocuments: [
+            {
+                documentName: `${projectName} Contract`,
+                documentType: 'Contract',
+                fileName: contractFileName,
+                filePath: sampleFileUrl(contractFileName),
+                uploadedDate: daysAgo(44)
+            }
+        ]
+    };
+};
+
 const seedCustomers = async () => {
     try {
         const users = await User.find({ status: 'Active' }).lean();
@@ -145,6 +236,14 @@ const seedCustomers = async () => {
                         'Master Service Agreement',
                         'Agreement',
                         'northstar-msa.pdf'
+                    )
+                ],
+                projectEngagements: [
+                    buildProjectEngagement(
+                        'Retail CRM Phase 2',
+                        1450000,
+                        'Milestone',
+                        'northstar-crm-phase-2-contract.pdf'
                     )
                 ]
             },
@@ -382,6 +481,14 @@ const seedCustomers = async () => {
                         'Outstanding Invoice',
                         'Invoice',
                         'vertex-outstanding-invoice.pdf'
+                    )
+                ],
+                projectEngagements: [
+                    buildProjectEngagement(
+                        'Distributor Portal Rollout',
+                        410000,
+                        'Quarterly',
+                        'vertex-distributor-portal-contract.pdf'
                     )
                 ]
             }

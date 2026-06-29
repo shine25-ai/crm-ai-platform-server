@@ -76,6 +76,99 @@ const transactionSchema = new mongoose.Schema(
     { timestamps: true }
 );
 
+const milestoneSchema = new mongoose.Schema(
+    {
+        name: { type: String, required: true },
+        percentage: { type: Number, default: 0 },
+        dueDate: { type: Date, default: null },
+        status: {
+            type: String,
+            enum: ['Pending', 'Invoiced', 'Paid'],
+            default: 'Pending'
+        }
+    },
+    { _id: true }
+);
+
+const taxSchema = new mongoose.Schema(
+    {
+        label: { type: String, default: 'GST' },
+        rate: { type: Number, default: 18 },
+        amount: { type: Number, default: 0 }
+    },
+    { _id: false }
+);
+
+const invoiceSchema = new mongoose.Schema(
+    {
+        invoiceNumber: { type: String, required: true },
+        projectName: { type: String, default: '' },
+        invoiceDate: { type: Date, default: Date.now },
+        dueDate: { type: Date, default: null },
+        paymentStatus: {
+            type: String,
+            enum: ['Pending', 'Partially Paid', 'Paid', 'Overdue', 'Cancelled'],
+            default: 'Pending'
+        },
+        amount: { type: Number, default: 0 },
+        taxableAmount: { type: Number, default: 0 },
+        taxDetails: { type: taxSchema, default: () => ({}) },
+        totalAmount: { type: Number, default: 0 },
+        milestoneName: { type: String, default: '' },
+        billingFrequency: { type: String, default: '' },
+        notes: { type: String, default: '' }
+    },
+    { timestamps: true }
+);
+
+const paymentRecordSchema = new mongoose.Schema(
+    {
+        invoiceNumber: { type: String, default: '' },
+        paymentDate: { type: Date, default: Date.now },
+        amount: { type: Number, default: 0 },
+        paymentMode: { type: String, default: 'Bank Transfer' },
+        referenceNumber: { type: String, default: '' },
+        notes: { type: String, default: '' }
+    },
+    { timestamps: true }
+);
+
+const contractDocumentSchema = new mongoose.Schema(
+    {
+        documentName: { type: String, required: true },
+        documentType: { type: String, default: 'Contract' },
+        fileName: { type: String, default: '' },
+        filePath: { type: String, default: '' },
+        uploadedDate: { type: Date, default: Date.now }
+    },
+    { timestamps: true }
+);
+
+const projectEngagementSchema = new mongoose.Schema(
+    {
+        projectName: { type: String, required: true },
+        projectValue: { type: Number, default: 0 },
+        contractStartDate: { type: Date, default: null },
+        contractEndDate: { type: Date, default: null },
+        billingFrequency: {
+            type: String,
+            enum: ['Milestone', 'Monthly', 'Quarterly', 'Annual'],
+            default: 'Milestone'
+        },
+        paymentTerms: { type: String, default: '' },
+        milestones: { type: [milestoneSchema], default: [] },
+        invoices: { type: [invoiceSchema], default: [] },
+        payments: { type: [paymentRecordSchema], default: [] },
+        contractDocuments: { type: [contractDocumentSchema], default: [] },
+        status: {
+            type: String,
+            enum: ['Active', 'Completed', 'On Hold', 'Cancelled'],
+            default: 'Active'
+        }
+    },
+    { timestamps: true }
+);
+
 const customerSchema = new mongoose.Schema(
     {
         customerName: { type: String, required: true, trim: true, index: true },
@@ -148,7 +241,8 @@ const customerSchema = new mongoose.Schema(
         followUps: { type: [timelineSchema], default: [] },
         meetings: { type: [timelineSchema], default: [] },
         contacts: { type: [contactSchema], default: [] },
-        documents: { type: [documentSchema], default: [] }
+        documents: { type: [documentSchema], default: [] },
+        projectEngagements: { type: [projectEngagementSchema], default: [] }
     },
     { timestamps: true }
 );

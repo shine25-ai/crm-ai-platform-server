@@ -12,6 +12,7 @@ const User = require('../users/user.model');
 const Role = require('../roles/role.model');
 const AppError = require('../../shared/utils/appError');
 const notificationService = require('../notifications/notification.service');
+const communicationService = require('../communications/communication.service');
 const {
     logActivity,
     logAudit
@@ -204,27 +205,39 @@ const getLeadById = async (id, user) => {
     await assertLeadAccess(lead, user);
 
     // Fetch related collections in parallel
-    const [notes, followUps, meetings, documents, calls, timeline] =
-        await Promise.all([
-            LeadNote.find({ leadId: id })
-                .populate('createdBy', 'name')
-                .sort({ createdAt: -1 }),
-            LeadFollowUp.find({ leadId: id })
-                .populate('createdBy', 'name')
-                .sort({ followUpDate: 1 }),
-            LeadMeeting.find({ leadId: id })
-                .populate('createdBy', 'name')
-                .sort({ meetingDate: -1 }),
-            LeadDocument.find({ leadId: id })
-                .populate('uploadedBy', 'name')
-                .sort({ createdAt: -1 }),
-            LeadCall.find({ leadId: id })
-                .populate('createdBy', 'name')
-                .sort({ callDate: -1 }),
-            LeadActivity.find({ leadId: id })
-                .populate('createdBy', 'name')
-                .sort({ createdAt: -1 })
-        ]);
+    const [
+        notes,
+        followUps,
+        meetings,
+        documents,
+        calls,
+        timeline,
+        communicationTimeline
+    ] = await Promise.all([
+        LeadNote.find({ leadId: id })
+            .populate('createdBy', 'name')
+            .sort({ createdAt: -1 }),
+        LeadFollowUp.find({ leadId: id })
+            .populate('createdBy', 'name')
+            .sort({ followUpDate: 1 }),
+        LeadMeeting.find({ leadId: id })
+            .populate('createdBy', 'name')
+            .sort({ meetingDate: -1 }),
+        LeadDocument.find({ leadId: id })
+            .populate('uploadedBy', 'name')
+            .sort({ createdAt: -1 }),
+        LeadCall.find({ leadId: id })
+            .populate('createdBy', 'name')
+            .sort({ callDate: -1 }),
+        LeadActivity.find({ leadId: id })
+            .populate('createdBy', 'name')
+            .sort({ createdAt: -1 }),
+        communicationService.getCommunicationTimeline('Lead', id)
+    ]);
+
+    const unifiedTimeline = [...timeline, ...communicationTimeline].sort(
+        (a, b) => new Date(b.createdAt) - new Date(a.createdAt)
+    );
 
     return {
         lead,
@@ -233,7 +246,8 @@ const getLeadById = async (id, user) => {
         meetings,
         documents,
         calls,
-        timeline
+        timeline: unifiedTimeline,
+        communicationTimeline
     };
 };
 

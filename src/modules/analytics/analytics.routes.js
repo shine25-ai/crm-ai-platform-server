@@ -12,4 +12,10 @@ router.get(
     analyticsController.getDashboardSummary
 );
 
+router.get(
+    '/sales',
+    authorize('reports:read', 'sales:read'),
+    analyticsController.getSalesAnalytics
+);
+
 module.exports = router;
