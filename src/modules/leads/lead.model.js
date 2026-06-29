@@ -93,6 +93,32 @@ const leadSchema = new mongoose.Schema(
             estimatedBudget: { type: Number, default: 0 },
             expectedTimeline: { type: String, default: '' }
         },
+        contactDesignation: {
+            type: String,
+            default: ''
+        },
+        companySize: {
+            type: String,
+            default: ''
+        },
+        companyAddress: {
+            type: String,
+            default: ''
+        },
+        convertedCustomerId: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'Customer',
+            default: null
+        },
+        convertedAt: {
+            type: Date,
+            default: null
+        },
+        convertedBy: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'User',
+            default: null
+        },
         isDeleted: {
             type: Boolean,
             default: false,

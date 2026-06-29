@@ -49,8 +49,22 @@ const resetPassword = async (req, res, next) => {
     }
 };
 
+const getSalesMembers = async (req, res, next) => {
+    try {
+        const users = await userService.getSalesMembers();
+        return ApiResponse.success(
+            res,
+            'Sales members retrieved successfully',
+            users
+        );
+    } catch (error) {
+        next(error);
+    }
+};
+
 module.exports = {
     getUsers,
+    getSalesMembers,
     createUser,
     updateUser,
     deleteUser,
