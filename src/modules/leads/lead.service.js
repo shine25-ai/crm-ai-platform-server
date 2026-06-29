@@ -364,6 +364,15 @@ const updateLead = async (id, data, user) => {
 
     await lead.save();
 
+    if (
+        data.status === 'Converted' &&
+        previousStatus !== 'Converted' &&
+        !lead.convertedCustomerId
+    ) {
+        await convertLead(id, { createOpportunity: false }, user, true);
+        return populateLead(Lead.findById(id));
+    }
+
     const currentAssignee = lead.assignedTo ? String(lead.assignedTo) : null;
 
     // Log status change
@@ -622,33 +631,47 @@ const reassignLead = async (id, data, user) => {
 
 // ─── Lead Conversion Engine ──────────────────────────────────────────────────
 
-const convertLead = async (id, data, user) => {
+async function convertLead(id, data, user, force = false) {
     const lead = await Lead.findOne({ _id: id, isDeleted: false });
     if (!lead) throw new AppError('Lead not found', 404);
 
     // Only qualified or won leads can be converted
     const allowedStatuses = ['Qualified', 'Won'];
-    if (!allowedStatuses.includes(lead.status)) {
+    if (!force && !allowedStatuses.includes(lead.status)) {
         throw new AppError(
             'Only Qualified or Won leads can be converted.',
             400
         );
     }
 
-    // Standard single transaction or atomicity
-    const session = await mongoose.startSession();
-    session.startTransaction();
+    let session = null;
+    let useTransaction = false;
 
     try {
-        // Query child collections inside the session
+        const db = mongoose.connection.db;
+        const hello = await db.command({ hello: 1 });
+        useTransaction = !!(hello.setName || hello.msg === 'isdbgrid');
+    } catch (err) {
+        useTransaction = false;
+    }
+
+    if (useTransaction) {
+        session = await mongoose.startSession();
+        session.startTransaction();
+    }
+
+    const sessionOpts = useTransaction ? { session } : {};
+
+    try {
+        // Query child collections in parallel without the session (read-only queries are safe and performant outside the transaction session, avoiding concurrent session usage issues)
         const [notes, followUps, meetings, documents, calls, activities] =
             await Promise.all([
-                LeadNote.find({ leadId: lead._id }).session(session),
-                LeadFollowUp.find({ leadId: lead._id }).session(session),
-                LeadMeeting.find({ leadId: lead._id }).session(session),
-                LeadDocument.find({ leadId: lead._id }).session(session),
-                LeadCall.find({ leadId: lead._id }).session(session),
-                LeadActivity.find({ leadId: lead._id }).session(session)
+                LeadNote.find({ leadId: lead._id }),
+                LeadFollowUp.find({ leadId: lead._id }),
+                LeadMeeting.find({ leadId: lead._id }),
+                LeadDocument.find({ leadId: lead._id }),
+                LeadCall.find({ leadId: lead._id }),
+                LeadActivity.find({ leadId: lead._id })
             ]);
 
         // Map child collections to Customer schema subdocuments
@@ -743,7 +766,7 @@ const convertLead = async (id, data, user) => {
                     documents: mappedDocuments
                 }
             ],
-            { session }
+            sessionOpts
         );
 
         const newCustomer = customer[0];
@@ -779,7 +802,7 @@ const convertLead = async (id, data, user) => {
                         createdBy: user.userId
                     }
                 ],
-                { session }
+                sessionOpts
             );
 
             newOpportunity = opportunity[0];
@@ -790,7 +813,7 @@ const convertLead = async (id, data, user) => {
         lead.convertedCustomerId = newCustomer._id;
         lead.convertedAt = new Date();
         lead.convertedBy = user.userId;
-        await lead.save({ session });
+        await lead.save(sessionOpts);
 
         // 4. Log converted timeline activity
         await LeadActivity.create(
@@ -812,12 +835,14 @@ const convertLead = async (id, data, user) => {
                     }
                 }
             ],
-            { session }
+            sessionOpts
         );
 
-        // Commit transaction
-        await session.commitTransaction();
-        session.endSession();
+        // Commit transaction if active
+        if (useTransaction && session) {
+            await session.commitTransaction();
+            session.endSession();
+        }
 
         // Audit Logs (outside transaction to avoid blocking locks if logging takes time)
         await logActivity(
@@ -859,11 +884,13 @@ const convertLead = async (id, data, user) => {
             opportunityId: newOpportunity ? newOpportunity._id : null
         };
     } catch (error) {
-        await session.abortTransaction();
-        session.endSession();
+        if (useTransaction && session) {
+            await session.abortTransaction();
+            session.endSession();
+        }
         throw error;
     }
-};
+}
 
 // ─── Sub-Item Actions ────────────────────────────────────────────────────────
 
