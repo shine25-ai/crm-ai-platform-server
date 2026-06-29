@@ -260,13 +260,37 @@ const recordCall = async (req, res, next) => {
     }
 };
 
+const reassignLead = async (req, res, next) => {
+    try {
+        const lead = await leadService.reassignLead(
+            req.params.id,
+            req.body,
+            req.user
+        );
+        return ApiResponse.success(res, 'Lead reassigned successfully', lead);
+    } catch (error) {
+        next(error);
+    }
+};
+
+const restoreLead = async (req, res, next) => {
+    try {
+        await leadService.restoreLead(req.params.id, req.user);
+        return ApiResponse.success(res, 'Lead restored successfully');
+    } catch (error) {
+        next(error);
+    }
+};
+
 module.exports = {
     getLeads,
     getLead,
     createLead,
     updateLead,
     deleteLead,
+    restoreLead,
     assignLead,
+    reassignLead,
     convertLead,
     addNote,
     editNote,

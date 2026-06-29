@@ -21,6 +21,16 @@ router.post(
     leadController.assignLead
 );
 router.post(
+    '/:id/reassign',
+    authorize('leads:assign', 'leads:write'),
+    leadController.reassignLead
+);
+router.post(
+    '/:id/restore',
+    authorize('leads:delete', 'leads:write'),
+    leadController.restoreLead
+);
+router.post(
     '/:id/convert',
     authorize('leads:convert', 'leads:write'),
     leadController.convertLead

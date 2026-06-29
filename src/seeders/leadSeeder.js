@@ -31,9 +31,14 @@ const seedLeads = async () => {
                 email: 'sales.manager@company.com',
                 password: hashedPassword,
                 roleId: managerRole._id,
+                department: 'Sales',
                 status: 'Active'
             });
             console.log('` salesManager created: sales.manager@company.com');
+        } else if (!salesManager.department) {
+            salesManager.department = 'Sales';
+            await salesManager.save();
+            console.log('` salesManager department updated to Sales');
         }
 
         // 3. Create default Sales Executive user if not exists
@@ -45,9 +50,14 @@ const seedLeads = async () => {
                 email: 'sales.exec@company.com',
                 password: hashedPassword,
                 roleId: execRole._id,
+                department: 'Sales',
                 status: 'Active'
             });
             console.log('` salesExec created: sales.exec@company.com');
+        } else if (!salesExec.department) {
+            salesExec.department = 'Sales';
+            await salesExec.save();
+            console.log('` salesExec department updated to Sales');
         }
 
         // 4. Clear existing leads to ensure clean re-seeding

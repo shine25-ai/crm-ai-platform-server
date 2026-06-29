@@ -60,6 +60,11 @@ router.use(authMiddleware);
  */
 router.get('/', authorize('users:read'), userController.getUsers);
 router.post('/', authorize('users:write'), userController.createUser);
+router.get(
+    '/sales-members',
+    authorize('users:read'),
+    userController.getSalesMembers
+);
 
 /**
  * @swagger

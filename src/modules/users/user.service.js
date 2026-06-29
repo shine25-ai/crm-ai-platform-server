@@ -25,6 +25,18 @@ const getAllUsers = async () => {
     return users.map(mapUserRole);
 };
 
+const getSalesMembers = async () => {
+    const roles = await Role.find({
+        roleCode: { $in: ['SALES_MANAGER', 'SALES_EXECUTIVE'] }
+    });
+    const roleIds = roles.map((r) => r._id);
+    const users = await User.find({
+        $or: [{ department: 'Sales' }, { roleId: { $in: roleIds } }],
+        status: { $in: ['Active', 'ACTIVE'] }
+    }).populate('roleId');
+    return users.map(mapUserRole);
+};
+
 const createUser = async (userData) => {
     const { name, email, password, roleId, role, mobile, department } =
         userData;
@@ -121,6 +133,7 @@ const resetPassword = async (id) => {
 
 module.exports = {
     getAllUsers,
+    getSalesMembers,
     createUser,
     updateUser,
     deleteUser,

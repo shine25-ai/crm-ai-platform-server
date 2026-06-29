@@ -29,16 +29,33 @@ const canManageAllLeads = async (user) => {
     const permissions = role?.permissions || [];
     return (
         permissions.includes('*') ||
-        ['SUPER_ADMIN', 'ADMIN', 'HR', 'SALES_MANAGER'].includes(role?.roleCode)
+        ['SUPER_ADMIN', 'ADMIN', 'HR'].includes(role?.roleCode)
     );
+};
+
+const getTeamUserIds = async (user) => {
+    const Employee = require('../employees/employee.model');
+    const teamEmployees = await Employee.find({ manager: user.employeeId });
+    const teamUserIds = teamEmployees.map((e) => e.userId).filter(Boolean);
+    return teamUserIds.map(String);
 };
 
 const assertLeadAccess = async (lead, user) => {
     if (await canManageAllLeads(user)) return;
+    const role = await Role.findById(user.roleId);
     const userId = String(user.userId);
     const assignedToId = lead.assignedTo
         ? String(lead.assignedTo._id || lead.assignedTo)
         : '';
+
+    if (role?.roleCode === 'SALES_MANAGER') {
+        const teamUserIds = await getTeamUserIds(user);
+        if (assignedToId === userId || teamUserIds.includes(assignedToId)) {
+            return;
+        }
+        throw new AppError('Forbidden: Access to this lead is denied.', 403);
+    }
+
     if (assignedToId !== userId) {
         throw new AppError('Forbidden: Access to this lead is denied.', 403);
     }
@@ -93,7 +110,22 @@ const listLeads = async (user, filters = {}) => {
     const query = { isDeleted: false };
 
     if (!hasFullAccess) {
-        query.assignedTo = user.userId;
+        const role = await Role.findById(user.roleId);
+        if (role?.roleCode === 'SALES_MANAGER') {
+            const teamUserIds = await getTeamUserIds(user);
+            const allowedUserIds = [user.userId, ...teamUserIds];
+            if (filters.assignedTo) {
+                if (allowedUserIds.includes(String(filters.assignedTo))) {
+                    query.assignedTo = filters.assignedTo;
+                } else {
+                    query.assignedTo = '___nonexistent___';
+                }
+            } else {
+                query.assignedTo = { $in: allowedUserIds };
+            }
+        } else {
+            query.assignedTo = user.userId;
+        }
     } else {
         if (filters.assignedTo) {
             query.assignedTo = filters.assignedTo;
@@ -249,7 +281,10 @@ const createLead = async (data, user) => {
         assignedTo: data.assignedTo || null,
         industry: data.industry || '',
         address: data.address || {},
-        requirements: data.requirements || {}
+        requirements: data.requirements || {},
+        contactDesignation: data.contactDesignation || '',
+        companySize: data.companySize || '',
+        companyAddress: data.companyAddress || ''
     });
 
     await logLeadActivity(
@@ -317,7 +352,10 @@ const updateLead = async (id, data, user) => {
         'assignedTo',
         'industry',
         'address',
-        'requirements'
+        'requirements',
+        'contactDesignation',
+        'companySize',
+        'companyAddress'
     ];
 
     editableFields.forEach((field) => {
@@ -392,11 +430,12 @@ const deleteLead = async (id, user) => {
     const lead = await Lead.findOne({ _id: id, isDeleted: false });
     if (!lead) throw new AppError('Lead not found', 404);
 
-    // Only Admin/Super Admin/Sales Manager can delete
-    const isManager = await canManageAllLeads(user);
-    if (!isManager) {
-        throw new AppError('Forbidden: Unauthorized to delete leads.', 403);
+    const role = await Role.findById(user.roleId);
+    if (!role || !['SUPER_ADMIN', 'ADMIN'].includes(role.roleCode)) {
+        throw new AppError('Forbidden: Only Admins can delete leads.', 403);
     }
+
+    const oldData = lead.toObject();
 
     lead.isDeleted = true;
     lead.deletedAt = new Date();
@@ -410,7 +449,33 @@ const deleteLead = async (id, user) => {
         `Deleted lead "${lead.name}" (${lead.leadNumber})`
     );
 
-    await logAudit(user.userId, 'Leads', 'Delete', lead.toObject(), null);
+    await logAudit(user.userId, 'Leads', 'Delete', oldData, null);
+
+    return true;
+};
+
+const restoreLead = async (id, user) => {
+    const role = await Role.findById(user.roleId);
+    if (!role || !['SUPER_ADMIN', 'ADMIN'].includes(role.roleCode)) {
+        throw new AppError('Forbidden: Only Admins can restore leads.', 403);
+    }
+
+    const lead = await Lead.findOne({ _id: id, isDeleted: true });
+    if (!lead) throw new AppError('Lead not found or not deleted', 404);
+
+    lead.isDeleted = false;
+    lead.deletedAt = null;
+    lead.deletedBy = null;
+    await lead.save();
+
+    await logActivity(
+        user.userId,
+        'RESTORE',
+        'Leads',
+        `Restored lead "${lead.name}" (${lead.leadNumber})`
+    );
+
+    await logAudit(user.userId, 'Leads', 'Restore', null, lead.toObject());
 
     return true;
 };
@@ -467,6 +532,94 @@ const assignLead = async (id, data, user) => {
     return populateLead(Lead.findById(lead._id));
 };
 
+const reassignLead = async (id, data, user) => {
+    const LeadOwnerHistory = require('./leadOwnerHistory.model');
+    const User = require('../users/user.model');
+
+    const lead = await Lead.findOne({ _id: id, isDeleted: false });
+    if (!lead) throw new AppError('Lead not found', 404);
+
+    const role = await Role.findById(user.roleId);
+    if (
+        !['SUPER_ADMIN', 'ADMIN', 'HR', 'SALES_MANAGER'].includes(
+            role?.roleCode
+        )
+    ) {
+        throw new AppError(
+            'Forbidden: Only managers and admins can reassign leads.',
+            403
+        );
+    }
+
+    const previousOwnerId = lead.assignedTo;
+    const newOwnerId = data.ownerId;
+
+    if (!newOwnerId) {
+        throw new AppError('New owner ID is required', 400);
+    }
+
+    const newOwner = await User.findById(newOwnerId);
+    if (!newOwner) {
+        throw new AppError('New owner user not found', 404);
+    }
+    if (newOwner.department !== 'Sales') {
+        throw new AppError(
+            'Forbidden: Only Sales department members can be assigned leads.',
+            400
+        );
+    }
+    if (newOwner.status !== 'Active' && newOwner.status !== 'ACTIVE') {
+        throw new AppError('Forbidden: Target user is inactive.', 400);
+    }
+
+    lead.assignedTo = newOwnerId;
+    if (lead.status === 'New') {
+        lead.status = 'Assigned';
+    }
+    await lead.save();
+
+    await LeadOwnerHistory.create({
+        leadId: lead._id,
+        previousOwnerId,
+        newOwnerId,
+        changedBy: user.userId,
+        changedAt: new Date()
+    });
+
+    const prevOwnerName = previousOwnerId
+        ? (await User.findById(previousOwnerId))?.name || 'Unassigned'
+        : 'Unassigned';
+    const newOwnerName = newOwner.name;
+
+    await logLeadActivity(
+        lead._id,
+        'Lead Reassigned',
+        `Lead reassigned. Previous Owner: ${prevOwnerName}, New Owner: ${newOwnerName}.`,
+        user.userId
+    );
+
+    await notificationService.createNotification(
+        newOwnerId,
+        'Lead Assigned',
+        `You have been assigned Lead ${lead.name}`,
+        'System',
+        {
+            referenceId: lead._id,
+            referenceType: 'System',
+            actionUrl: `/leads/${lead._id}`
+        }
+    );
+
+    await logActivity(
+        user.userId,
+        'UPDATE',
+        'Leads',
+        `Reassigned lead "${lead.name}" to ${newOwnerName}`
+    );
+
+    return populateLead(Lead.findById(lead._id));
+};
+
 // ─── Lead Conversion Engine ──────────────────────────────────────────────────
 
 const convertLead = async (id, data, user) => {
@@ -487,17 +640,107 @@ const convertLead = async (id, data, user) => {
     session.startTransaction();
 
     try {
+        // Query child collections inside the session
+        const [notes, followUps, meetings, documents, calls, activities] =
+            await Promise.all([
+                LeadNote.find({ leadId: lead._id }).session(session),
+                LeadFollowUp.find({ leadId: lead._id }).session(session),
+                LeadMeeting.find({ leadId: lead._id }).session(session),
+                LeadDocument.find({ leadId: lead._id }).session(session),
+                LeadCall.find({ leadId: lead._id }).session(session),
+                LeadActivity.find({ leadId: lead._id }).session(session)
+            ]);
+
+        // Map child collections to Customer schema subdocuments
+        const mappedFollowUps = [];
+        notes.forEach((n) => {
+            mappedFollowUps.push({
+                title: 'Lead Note',
+                note: n.content,
+                date: n.createdAt,
+                createdBy: n.createdBy
+            });
+        });
+        followUps.forEach((f) => {
+            mappedFollowUps.push({
+                title: `Lead Follow-up: ${f.type}`,
+                note: `Comments: ${f.comments || ''}\nStatus: ${f.status}`,
+                date: f.followUpDate,
+                createdBy: f.createdBy
+            });
+        });
+        calls.forEach((c) => {
+            mappedFollowUps.push({
+                title: 'Lead Call Logged',
+                note: `Duration: ${c.duration}s. Outcome: ${c.outcome || 'No outcome recorded.'}`,
+                date: c.callDate,
+                createdBy: c.createdBy
+            });
+        });
+        activities.forEach((act) => {
+            mappedFollowUps.push({
+                title: `Lead Activity: ${act.activityType}`,
+                note: act.description,
+                date: act.createdAt,
+                createdBy: act.createdBy
+            });
+        });
+
+        const mappedMeetings = meetings.map((m) => ({
+            title: `Lead Meeting: ${m.location || 'Online'}`,
+            note: `Participants: ${m.participants.join(', ') || 'None'}\nOutcome: ${m.outcome || 'No outcome logged.'}`,
+            date: m.meetingDate,
+            createdBy: m.createdBy
+        }));
+
+        const mappedDocuments = documents.map((d) => ({
+            documentName: d.name,
+            documentType: d.mimeType || 'Document',
+            fileName: d.name,
+            filePath: d.fileUrl,
+            fileSize: d.fileSize || 0,
+            mimeType: d.mimeType || '',
+            uploadedBy: d.uploadedBy,
+            uploadedDate: d.createdAt
+        }));
+
+        const addressString =
+            lead.companyAddress ||
+            (lead.address
+                ? `${lead.address.street || ''}, ${lead.address.city || ''}, ${lead.address.state || ''}, ${lead.address.zip || ''}, ${lead.address.country || ''}`
+                : '');
+
         // 1. Create Customer
         const customer = await Customer.create(
             [
                 {
-                    name: lead.name,
+                    customerName: lead.name,
                     companyName: lead.companyName || lead.name,
-                    mobile: lead.mobile,
+                    mobileNumber: lead.mobile,
                     email: lead.email || '',
-                    category: data.category || 'SME',
-                    leadId: lead._id,
-                    createdBy: user.userId
+                    customerType: 'Company',
+                    status: 'Prospect',
+                    assignedTo: lead.assignedTo || null,
+                    industry: lead.industry || '',
+                    companySize: lead.companySize || '',
+                    website: lead.website || '',
+                    address: addressString,
+                    contactPerson: lead.name,
+                    designation: lead.contactDesignation || '',
+                    mobile: lead.mobile,
+                    ownerId: lead.assignedTo || null,
+                    contacts: [
+                        {
+                            contactName: lead.name,
+                            designation: lead.contactDesignation || '',
+                            mobileNumber: lead.mobile,
+                            email: lead.email || '',
+                            isPrimaryContact: true
+                        }
+                    ],
+                    followUps: mappedFollowUps,
+                    meetings: mappedMeetings,
+                    documents: mappedDocuments
                 }
             ],
             { session }
@@ -544,6 +787,9 @@ const convertLead = async (id, data, user) => {
 
         // 3. Mark Lead as Converted
         lead.status = 'Converted';
+        lead.convertedCustomerId = newCustomer._id;
+        lead.convertedAt = new Date();
+        lead.convertedBy = user.userId;
         await lead.save({ session });
 
         // 4. Log converted timeline activity
@@ -553,7 +799,7 @@ const convertLead = async (id, data, user) => {
                     leadId: lead._id,
                     activityType: 'Converted',
                     description:
-                        `Lead converted to customer: "${newCustomer.name}"` +
+                        `Lead converted to customer: "${newCustomer.customerName}"` +
                         (newOpportunity
                             ? ` and opportunity "${newOpportunity.name}".`
                             : '.'),
@@ -578,7 +824,7 @@ const convertLead = async (id, data, user) => {
             user.userId,
             'CONVERT',
             'Leads',
-            `Converted lead "${lead.name}" to Customer "${newCustomer.name}"`
+            `Converted lead "${lead.name}" to Customer "${newCustomer.customerName}"`
         );
 
         await logAudit(
@@ -597,7 +843,7 @@ const convertLead = async (id, data, user) => {
             await notificationService.createNotification(
                 lead.assignedTo,
                 'Lead Converted',
-                `Your lead "${lead.name}" has been converted to customer "${newCustomer.name}".`,
+                `Your lead "${lead.name}" has been converted to customer "${newCustomer.customerName}".`,
                 'System',
                 {
                     referenceId: newCustomer._id,
@@ -896,7 +1142,9 @@ module.exports = {
     createLead,
     updateLead,
     deleteLead,
+    restoreLead,
     assignLead,
+    reassignLead,
     convertLead,
     addNote,
     editNote,

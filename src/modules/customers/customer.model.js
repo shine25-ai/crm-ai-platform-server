@@ -190,6 +190,39 @@ const customerSchema = new mongoose.Schema(
             ref: 'User',
             default: null
         },
+        industry: {
+            type: String,
+            default: ''
+        },
+        companySize: {
+            type: String,
+            default: ''
+        },
+        website: {
+            type: String,
+            default: ''
+        },
+        address: {
+            type: String,
+            default: ''
+        },
+        contactPerson: {
+            type: String,
+            default: ''
+        },
+        designation: {
+            type: String,
+            default: ''
+        },
+        mobile: {
+            type: String,
+            default: ''
+        },
+        ownerId: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'User',
+            default: null
+        },
         gstNumber: { type: String, default: '' },
         panNumber: { type: String, default: '' },
         billingAddress: { type: addressSchema, default: () => ({}) },
