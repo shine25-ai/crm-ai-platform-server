@@ -77,6 +77,14 @@ const isWithinPaymentRange = (value, bounds) => {
 
 const getDashboardSummary = async () => {
     const today = new Date().toISOString().slice(0, 10);
+    const now = new Date();
+    const currentMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    const nextMonthStart = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+    const previousMonthStart = new Date(
+        now.getFullYear(),
+        now.getMonth() - 1,
+        1
+    );
 
     const [
         todaysAttendance,
@@ -84,7 +92,8 @@ const getDashboardSummary = async () => {
         pendingTasks,
         completedTasks,
         onlineEmployees,
-        recentActivities
+        recentActivities,
+        monthlyRevenueRows
     ] = await Promise.all([
         Attendance.countDocuments({ shiftDate: today }),
         Employee.countDocuments({ status: 'Active' }),
@@ -96,7 +105,52 @@ const getDashboardSummary = async () => {
         ActivityLog.find({})
             .populate('userId', 'name email')
             .sort({ createdAt: -1 })
-            .limit(10)
+            .limit(10),
+        Customer.aggregate([
+            { $unwind: '$projectEngagements' },
+            { $unwind: '$projectEngagements.payments' },
+            {
+                $match: {
+                    'projectEngagements.payments.paymentDate': {
+                        $gte: previousMonthStart,
+                        $lt: nextMonthStart
+                    }
+                }
+            },
+            {
+                $group: {
+                    _id: null,
+                    currentMonthRevenue: {
+                        $sum: {
+                            $cond: [
+                                {
+                                    $gte: [
+                                        '$projectEngagements.payments.paymentDate',
+                                        currentMonthStart
+                                    ]
+                                },
+                                '$projectEngagements.payments.amount',
+                                0
+                            ]
+                        }
+                    },
+                    previousMonthRevenue: {
+                        $sum: {
+                            $cond: [
+                                {
+                                    $lt: [
+                                        '$projectEngagements.payments.paymentDate',
+                                        currentMonthStart
+                                    ]
+                                },
+                                '$projectEngagements.payments.amount',
+                                0
+                            ]
+                        }
+                    }
+                }
+            }
+        ])
     ]);
 
     const attendanceTrend = await Attendance.aggregate([
@@ -118,6 +172,22 @@ const getDashboardSummary = async () => {
             : Math.round(
                   (completedTasks / (pendingTasks + completedTasks)) * 100
               );
+    const currentMonthRevenue = toNumber(
+        monthlyRevenueRows[0]?.currentMonthRevenue
+    );
+    const previousMonthRevenue = toNumber(
+        monthlyRevenueRows[0]?.previousMonthRevenue
+    );
+    const revenueChangePercentage =
+        previousMonthRevenue === 0
+            ? currentMonthRevenue > 0
+                ? 100
+                : 0
+            : Math.round(
+                  ((currentMonthRevenue - previousMonthRevenue) /
+                      previousMonthRevenue) *
+                      1000
+              ) / 10;
 
     return {
         widgets: {
@@ -125,7 +195,12 @@ const getDashboardSummary = async () => {
             activeEmployees,
             pendingTasks,
             completedTasks,
-            onlineEmployees
+            onlineEmployees,
+            revenue: {
+                currentMonthRevenue,
+                previousMonthRevenue,
+                changePercentage: revenueChangePercentage
+            }
         },
         charts: {
             attendanceTrend,
