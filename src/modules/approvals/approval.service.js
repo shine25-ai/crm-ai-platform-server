@@ -19,13 +19,14 @@ const {
 const leaveService = require('../leave/leave.service');
 
 // Fallback search to find a HR user if manager/deptHead is not found or has no userId
-const findFallbackHRUser = async () => {
+const findFallbackHRUser = async (excludedUserIds = []) => {
     try {
         const hrRole = await Role.findOne({ roleCode: 'HR' });
         if (hrRole) {
             const hrUser = await User.findOne({
                 roleId: hrRole._id,
-                status: 'Active'
+                status: 'Active',
+                _id: { $nin: excludedUserIds }
             });
             if (hrUser) return hrUser;
         }
@@ -35,7 +36,8 @@ const findFallbackHRUser = async () => {
         if (adminRole) {
             const adminUser = await User.findOne({
                 roleId: adminRole._id,
-                status: 'Active'
+                status: 'Active',
+                _id: { $nin: excludedUserIds }
             });
             if (adminUser) return adminUser;
         }
@@ -119,6 +121,38 @@ const findApproverForStage = async (stage, requesterEmployeeId) => {
 
     const fallback = await findFallbackHRUser();
     return fallback ? fallback._id : null;
+};
+
+const resolveStageApprovers = async (workflow, requesterEmployeeId) => {
+    const usedApprovers = [];
+    const assignments = [];
+
+    for (const stage of workflow.stages) {
+        let approverId = await findApproverForStage(stage, requesterEmployeeId);
+        if (
+            approverId &&
+            usedApprovers.some((id) => String(id) === String(approverId))
+        ) {
+            const fallback = await findFallbackHRUser(usedApprovers);
+            approverId = fallback?._id || null;
+        }
+        if (!approverId) {
+            throw new AppError(
+                `No eligible approver is configured for ${stage.stageName}`,
+                400
+            );
+        }
+        usedApprovers.push(approverId);
+        assignments.push({
+            stageNumber: stage.stageNumber,
+            stageName: stage.stageName,
+            approverRole: stage.approverRole,
+            approverId,
+            status: 'Pending'
+        });
+    }
+
+    return assignments;
 };
 
 // Generate unique sequential request numbers REQ-YYYY-0001
@@ -231,6 +265,8 @@ const getApprovalById = async (id, currentUser = {}) => {
             ]
         })
         .populate('currentApproverId', 'name email')
+        .populate('stageApprovals.approverId', 'name email')
+        .populate('stageApprovals.actedBy', 'name email')
         .populate('workflowId');
 
     if (!approval) {
@@ -301,6 +337,12 @@ const createApproval = async (data, user) => {
             400
         );
     }
+    if (data.requestType === 'Leave Request' && workflow.stages.length !== 2) {
+        throw new AppError(
+            'Leave Request workflow must be configured with exactly Stage 1 and Stage 2',
+            400
+        );
+    }
 
     // 3. Resolve requester employee record
     const emp = await Employee.findOne({ userId: user.userId });
@@ -329,7 +371,8 @@ const createApproval = async (data, user) => {
         );
     }
     const initialStage = workflow.stages[0];
-    const initialApprover = await findApproverForStage(initialStage, emp._id);
+    const stageApprovals = await resolveStageApprovers(workflow, emp._id);
+    const initialApprover = stageApprovals[0].approverId;
 
     // 6. Create request document
     const approval = await Approval.create({
@@ -345,7 +388,8 @@ const createApproval = async (data, user) => {
         effectiveDate: new Date(data.effectiveDate),
         requestedAmount: data.requestedAmount || 0,
         requestData: data.requestData || {},
-        currentApproverId: initialApprover
+        currentApproverId: initialApprover,
+        stageApprovals
     });
 
     if (approval.requestType === 'Leave Request') {
@@ -418,7 +462,6 @@ const updateApproval = async (id, data, user) => {
     const isCurrentApprover =
         approval.currentApproverId &&
         String(approval.currentApproverId) === String(user.userId);
-    const isAdmin = ['ADMIN', 'SUPER_ADMIN'].includes(user.roleCode);
 
     // 4. Evaluate specific actions
     if (data.action === 'Cancel') {
@@ -454,25 +497,7 @@ const updateApproval = async (id, data, user) => {
         return getApprovalById(approval._id, user);
     }
 
-    let isAuthorized = isCurrentApprover || isAdmin;
-
-    // Check if the current workflow stage role allows the user's roleCode to action it
-    if (!isAuthorized && approval.workflowId) {
-        const currentStage = approval.workflowId.stages?.find(
-            (s) => s.stageNumber === approval.currentStageNumber
-        );
-        if (currentStage) {
-            if (currentStage.approverRole === 'HR' && user.roleCode === 'HR') {
-                isAuthorized = true;
-            }
-            if (
-                currentStage.approverRole === 'ADMIN' &&
-                ['ADMIN', 'SUPER_ADMIN'].includes(user.roleCode)
-            ) {
-                isAuthorized = true;
-            }
-        }
-    }
+    const isAuthorized = isCurrentApprover;
 
     // For reviewer actions (Approve, Reject, Escalate, Reassign)
     if (!isAuthorized) {
@@ -482,11 +507,45 @@ const updateApproval = async (id, data, user) => {
         );
     }
 
+    if (['Approve', 'Reject'].includes(data.action)) {
+        const existingDecision = await ApprovalAction.findOne({
+            approvalRequestId: approval._id,
+            approverId: user.userId,
+            stageNumber: { $gt: 0 },
+            action: { $in: ['Approve', 'Reject'] }
+        });
+        if (existingDecision) {
+            throw new AppError(
+                'You have already made a decision on this request',
+                409
+            );
+        }
+    }
+
+    if (
+        approval.requestType === 'Leave Request' &&
+        ['Reassign', 'Escalate'].includes(data.action)
+    ) {
+        throw new AppError(
+            'Leave stage approvers are fixed by employee hierarchy and cannot be proxied or reassigned',
+            400
+        );
+    }
+
     const oldState = JSON.stringify(approval);
 
     if (data.action === 'Reject') {
         approval.status = 'Rejected';
         approval.currentApproverId = null;
+        const rejectedStage = approval.stageApprovals?.find(
+            (stage) => stage.stageNumber === approval.currentStageNumber
+        );
+        if (rejectedStage) {
+            rejectedStage.status = 'Rejected';
+            rejectedStage.actedBy = user.userId;
+            rejectedStage.actedAt = new Date();
+            rejectedStage.comments = data.comments;
+        }
 
         await approval.save();
         await leaveService.releaseLeaveReservation(
@@ -499,7 +558,8 @@ const updateApproval = async (id, data, user) => {
             stageNumber: approval.currentStageNumber,
             approverId: user.userId,
             action: 'Reject',
-            comments: data.comments
+            comments: data.comments,
+            decisionKey: `${approval._id}:${user.userId}`
         });
 
         // Notify requester employee
@@ -632,12 +692,23 @@ const updateApproval = async (id, data, user) => {
             (s) => s.stageNumber === approval.currentStageNumber
         );
 
+        const approvedStage = approval.stageApprovals?.find(
+            (stage) => stage.stageNumber === approval.currentStageNumber
+        );
+        if (approvedStage) {
+            approvedStage.status = 'Approved';
+            approvedStage.actedBy = user.userId;
+            approvedStage.actedAt = new Date();
+            approvedStage.comments = data.comments || 'Approved';
+        }
+
         await ApprovalAction.create({
             approvalRequestId: approval._id,
             stageNumber: approval.currentStageNumber,
             approverId: user.userId,
             action: 'Approve',
-            comments: data.comments || 'Approved'
+            comments: data.comments || 'Approved',
+            decisionKey: `${approval._id}:${user.userId}`
         });
 
         const nextStage = workflow.stages[currentStageIdx + 1];
@@ -645,10 +716,12 @@ const updateApproval = async (id, data, user) => {
         if (nextStage) {
             // Move to next stage
             approval.currentStageNumber = nextStage.stageNumber;
-            const nextApprover = await findApproverForStage(
-                nextStage,
-                approval.employeeId
+            const assignedNextStage = approval.stageApprovals?.find(
+                (stage) => stage.stageNumber === nextStage.stageNumber
             );
+            const nextApprover =
+                assignedNextStage?.approverId ||
+                (await findApproverForStage(nextStage, approval.employeeId));
             approval.currentApproverId = nextApprover;
             approval.status = 'Pending Approval'; // make sure status is clean
 

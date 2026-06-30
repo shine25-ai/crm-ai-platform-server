@@ -24,6 +24,10 @@ const approvalActionSchema = new mongoose.Schema({
         type: String,
         default: ''
     },
+    decisionKey: {
+        type: String,
+        default: undefined
+    },
     actionDate: {
         type: Date,
         default: Date.now
@@ -31,5 +35,9 @@ const approvalActionSchema = new mongoose.Schema({
 });
 
 approvalActionSchema.index({ approvalRequestId: 1, stageNumber: 1 });
+approvalActionSchema.index(
+    { decisionKey: 1 },
+    { unique: true, sparse: true, name: 'unique_approval_decision' }
+);
 
 module.exports = mongoose.model('ApprovalAction', approvalActionSchema);

@@ -35,6 +35,46 @@ const monthKey = (value) =>
         year: 'numeric'
     });
 
+const getPaymentDateBounds = (filters = {}) => {
+    const now = new Date();
+    const end = new Date(now);
+    end.setHours(23, 59, 59, 999);
+    const start = new Date(now);
+    start.setHours(0, 0, 0, 0);
+
+    switch (filters.period) {
+        case 'Today':
+            return { start, end };
+        case 'Week':
+            start.setDate(start.getDate() - start.getDay());
+            return { start, end };
+        case 'Month':
+            start.setDate(1);
+            return { start, end };
+        case 'Year':
+            start.setMonth(0, 1);
+            return { start, end };
+        case 'Custom':
+        default:
+            return {
+                start: filters.dateFrom
+                    ? new Date(`${filters.dateFrom}T00:00:00`)
+                    : null,
+                end: filters.dateTo
+                    ? new Date(`${filters.dateTo}T23:59:59.999`)
+                    : null
+            };
+    }
+};
+
+const isWithinPaymentRange = (value, bounds) => {
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return false;
+    if (bounds.start && date < bounds.start) return false;
+    if (bounds.end && date > bounds.end) return false;
+    return true;
+};
+
 const getDashboardSummary = async () => {
     const today = new Date().toISOString().slice(0, 10);
 
@@ -126,7 +166,7 @@ const getSalesAnalytics = async (filters = {}) => {
             'assignedTo',
             'name email'
         ),
-        Customer.find({}).populate('assignedTo', 'name email'),
+        Customer.find({}).populate('assignedTo', 'name email department'),
         User.find({ status: { $in: ['Active', 'ACTIVE'] } }).select(
             'name email'
         )
@@ -184,6 +224,49 @@ const getSalesAnalytics = async (filters = {}) => {
         ? Math.round((wonCount / opportunityCount) * 100)
         : 0;
 
+    const paymentBounds = getPaymentDateBounds(filters);
+    const paymentRows = customers.flatMap((customer) =>
+        (customer.projectEngagements || []).flatMap((project) => {
+            if (
+                filters.projectId &&
+                String(project._id) !== String(filters.projectId)
+            ) {
+                return [];
+            }
+            if (
+                filters.department &&
+                customer.assignedTo?.department !== filters.department
+            ) {
+                return [];
+            }
+            return (project.payments || [])
+                .filter((payment) =>
+                    isWithinPaymentRange(payment.paymentDate, paymentBounds)
+                )
+                .map((payment) => ({
+                    paymentId: payment._id,
+                    customerId: customer._id,
+                    customerName:
+                        customer.customerName || customer.companyName || '-',
+                    customerType: customer.customerType || 'Unclassified',
+                    projectId: project._id,
+                    projectName: project.projectName,
+                    department: customer.assignedTo?.department || 'Unassigned',
+                    assignedTo: customer.assignedTo,
+                    paymentDate: payment.paymentDate,
+                    amount: toNumber(payment.amount),
+                    paymentMode: payment.paymentMode,
+                    referenceNumber: payment.referenceNumber
+                }));
+        })
+    );
+
+    const paidRevenueByCustomer = paymentRows.reduce((map, payment) => {
+        const key = String(payment.customerId);
+        map.set(key, (map.get(key) || 0) + payment.amount);
+        return map;
+    }, new Map());
+
     const sourceMap = customers.reduce((acc, item) => {
         const source = item.customerType || 'Unclassified';
         if (!acc[source]) {
@@ -199,9 +282,8 @@ const getSalesAnalytics = async (filters = {}) => {
         if (item.status === 'Active') acc[source].convertedLeads += 1;
         if (['Inactive', 'Blocked'].includes(item.status))
             acc[source].lostLeads += 1;
-        acc[source].revenueGenerated += toNumber(
-            item.revenueSummary?.totalRevenue
-        );
+        acc[source].revenueGenerated +=
+            paidRevenueByCustomer.get(String(item._id)) || 0;
         return acc;
     }, {});
 
@@ -255,10 +337,7 @@ const getSalesAnalytics = async (filters = {}) => {
         const row = ensureUser(item.assignedTo);
         row.opportunitiesCreated += 1;
         if (item.relatedType === 'Lead') row.totalLeadsAssigned += 1;
-        if (item.status === 'Won' || item.stage === 'Won') {
-            row.wonDeals += 1;
-            row.revenueGenerated += toNumber(item.dealValue);
-        }
+        if (item.status === 'Won' || item.stage === 'Won') row.wonDeals += 1;
         if (item.status === 'Lost' || item.stage === 'Lost') row.lostDeals += 1;
     });
 
@@ -267,6 +346,10 @@ const getSalesAnalytics = async (filters = {}) => {
         .forEach((item) => {
             ensureUser(item.assignedTo).followUpsCompleted += 1;
         });
+
+    paymentRows.forEach((payment) => {
+        ensureUser(payment.assignedTo).revenueGenerated += payment.amount;
+    });
 
     const salesPerformance = Array.from(userMap.values())
         .map((row) => ({
@@ -282,6 +365,28 @@ const getSalesAnalytics = async (filters = {}) => {
         )
         .sort((a, b) => b.revenueGenerated - a.revenueGenerated);
 
+    const revenueByDate = Object.values(
+        paymentRows.reduce((map, payment) => {
+            const key = new Date(payment.paymentDate)
+                .toISOString()
+                .slice(0, 10);
+            if (!map[key]) {
+                map[key] = { date: key, revenueGenerated: 0, payments: 0 };
+            }
+            map[key].revenueGenerated += payment.amount;
+            map[key].payments += 1;
+            return map;
+        }, {})
+    ).sort((a, b) => a.date.localeCompare(b.date));
+
+    const projects = customers.flatMap((customer) =>
+        (customer.projectEngagements || []).map((project) => ({
+            id: project._id,
+            name: project.projectName,
+            customerName: customer.customerName || customer.companyName
+        }))
+    );
+
     return {
         filters: {
             users: users.map((user) => ({
@@ -296,7 +401,15 @@ const getSalesAnalytics = async (filters = {}) => {
                 'Negotiation',
                 'Won',
                 'Lost'
-            ]
+            ],
+            departments: [
+                ...new Set(
+                    customers
+                        .map((customer) => customer.assignedTo?.department)
+                        .filter(Boolean)
+                )
+            ].sort(),
+            projects
         },
         revenueForecast: {
             cards: {
@@ -363,12 +476,13 @@ const getSalesAnalytics = async (filters = {}) => {
                       )
                     : 0
             },
-            revenueChart: salesPerformance.map((item) => ({
-                name: item.salesPersonName,
+            revenueChart: revenueByDate.map((item) => ({
+                name: item.date,
                 revenueGenerated: item.revenueGenerated,
-                wonDeals: item.wonDeals
+                payments: item.payments
             })),
-            rows: salesPerformance
+            rows: salesPerformance,
+            payments: paymentRows
         }
     };
 };

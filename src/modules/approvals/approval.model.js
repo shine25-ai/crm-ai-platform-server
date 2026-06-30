@@ -1,5 +1,31 @@
 const mongoose = require('mongoose');
 
+const stageApprovalSchema = new mongoose.Schema(
+    {
+        stageNumber: { type: Number, required: true },
+        stageName: { type: String, required: true },
+        approverRole: { type: String, required: true },
+        approverId: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'User',
+            required: true
+        },
+        status: {
+            type: String,
+            enum: ['Pending', 'Approved', 'Rejected'],
+            default: 'Pending'
+        },
+        actedBy: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'User',
+            default: null
+        },
+        actedAt: { type: Date, default: null },
+        comments: { type: String, default: '' }
+    },
+    { _id: false }
+);
+
 const approvalSchema = new mongoose.Schema(
     {
         requestNumber: {
@@ -80,6 +106,10 @@ const approvalSchema = new mongoose.Schema(
             ref: 'User',
             default: null
         },
+        stageApprovals: {
+            type: [stageApprovalSchema],
+            default: []
+        },
         escalatedAt: {
             type: Date,
             default: null
@@ -98,5 +128,6 @@ const approvalSchema = new mongoose.Schema(
 approvalSchema.index({ employeeId: 1, status: 1, createdAt: -1 });
 approvalSchema.index({ currentApproverId: 1, status: 1 });
 approvalSchema.index({ requestNumber: 1 });
+approvalSchema.index({ 'stageApprovals.approverId': 1, status: 1 });
 
 module.exports = mongoose.model('Approval', approvalSchema);
