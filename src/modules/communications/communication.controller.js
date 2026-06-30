@@ -172,6 +172,63 @@ const createWhatsappLog = async (req, res, next) => {
     }
 };
 
+const getSettings = async (req, res, next) => {
+    try {
+        return success(
+            res,
+            'Communication settings retrieved successfully',
+            await communicationService.getCommunicationSettings()
+        );
+    } catch (error) {
+        next(error);
+    }
+};
+
+const updateSettings = async (req, res, next) => {
+    try {
+        return success(
+            res,
+            'Communication settings updated successfully',
+            await communicationService.updateCommunicationSettings(
+                req.body,
+                req.user.userId
+            )
+        );
+    } catch (error) {
+        next(error);
+    }
+};
+
+const testSettings = async (req, res, next) => {
+    try {
+        return success(
+            res,
+            'Provider connection verified successfully',
+            await communicationService.testCommunicationSettings(
+                req.body.channel
+            )
+        );
+    } catch (error) {
+        next(error);
+    }
+};
+
+const sendCommunication = async (req, res, next) => {
+    try {
+        return success(
+            res,
+            'Message sent successfully',
+            await communicationService.sendCommunication(
+                req.body,
+                req.user.userId
+            ),
+            201
+        );
+    } catch (error) {
+        next(error);
+    }
+};
+
 const getTimeline = async (req, res, next) => {
     try {
         return success(
@@ -200,5 +257,9 @@ module.exports = {
     createEmailLog,
     listWhatsappLogs,
     createWhatsappLog,
+    getSettings,
+    updateSettings,
+    testSettings,
+    sendCommunication,
     getTimeline
 };
