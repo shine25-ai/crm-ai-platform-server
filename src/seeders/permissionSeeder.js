@@ -54,7 +54,10 @@ const permissionCatalog = [
     ['activity:read', 'Read Activity Logs', 'Activity'],
     ['gps:read', 'Read GPS Tracking', 'GPS Tracking'],
     ['reports:read', 'Read Reports', 'Reports'],
-    ['settings:read', 'Read Settings', 'Settings']
+    ['settings:read', 'Read Settings', 'Settings'],
+    ['assets:read', 'Read Assets', 'Assets'],
+    ['assets:write', 'Write Assets', 'Assets'],
+    ['assets:delete', 'Delete Assets', 'Assets']
 ];
 
 const rolePermissions = {
@@ -91,7 +94,10 @@ const rolePermissions = {
         'calendar:read',
         'calendar:write',
         'activity:read',
-        'settings:read'
+        'settings:read',
+        'assets:read',
+        'assets:write',
+        'assets:delete'
     ],
     HR: [
         'dashboard:view',
@@ -117,7 +123,9 @@ const rolePermissions = {
         'calendar:read',
         'calendar:write',
         'activity:read',
-        'settings:read'
+        'settings:read',
+        'assets:read',
+        'assets:write'
     ],
     EMPLOYEE: [
         'dashboard:view',
@@ -135,7 +143,8 @@ const rolePermissions = {
         'approvals:write',
         'leave:read',
         'calendar:read',
-        'settings:read'
+        'settings:read',
+        'assets:read'
     ],
     SALES_MANAGER: [
         'dashboard:view',
@@ -152,7 +161,8 @@ const rolePermissions = {
         'notifications:write',
         'chat:read',
         'chat:write',
-        'settings:read'
+        'settings:read',
+        'assets:read'
     ],
     SALES_EXECUTIVE: [
         'dashboard:view',
