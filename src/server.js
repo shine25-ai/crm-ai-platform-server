@@ -21,6 +21,7 @@ const seedLeads = require('./seeders/leadSeeder.js');
 const seedCommunications = require('./seeders/communicationSeeder.js');
 const seedLeavePolicies = require('./seeders/leavePolicySeeder.js');
 const seedLeaveData = require('./seeders/leaveDataSeeder.js');
+const seedAssets = require('./seeders/assetSeeder.js');
 const {
     scheduleTaskDeadlineReminders
 } = require('./shared/services/taskDeadline.cron');
@@ -53,6 +54,7 @@ const startServer = async () => {
         await seedCommunications();
         await seedLeavePolicies();
         await seedLeaveData();
+        await seedAssets();
 
         // await seedDepartmentsAndEmployees();
 

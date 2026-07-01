@@ -10,6 +10,14 @@ const authorize =
             }
 
             const role = await Role.findById(req.user.roleId);
+            console.log(
+                '🛡️ [Permission Check] User:',
+                req.user.name || req.user.email,
+                'Token roleId:',
+                req.user.roleId,
+                'DB Role found:',
+                role ? `${role.roleName} (${role.roleCode})` : 'NULL'
+            );
             const permissions = role?.permissions || [];
 
             if (role?.roleCode === 'SUPER_ADMIN') {

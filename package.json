@@ -11,6 +11,7 @@
     "build": "esbuild src/server.js --bundle --platform=node --target=node24 --outfile=dist-server/server.js --packages=external --loader:.jpg=dataurl --loader:.png=dataurl --sourcemap",
     "format": "prettier --write \"src/**/*.js\"",
     "format:check": "prettier --check \"src/**/*.js\"",
+    "seed": "node src/seeders/index.js",
     "prepare": "husky"
   },
   "repository": {
