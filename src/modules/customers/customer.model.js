@@ -85,7 +85,10 @@ const milestoneSchema = new mongoose.Schema(
             type: String,
             enum: ['Pending', 'Invoiced', 'Paid'],
             default: 'Pending'
-        }
+        },
+        invoiceNumber: { type: String, default: '' },
+        invoicedAt: { type: Date, default: null },
+        paidAt: { type: Date, default: null }
     },
     { _id: true }
 );
@@ -114,8 +117,13 @@ const invoiceSchema = new mongoose.Schema(
         taxableAmount: { type: Number, default: 0 },
         taxDetails: { type: taxSchema, default: () => ({}) },
         totalAmount: { type: Number, default: 0 },
+        paidAmount: { type: Number, default: 0 },
         milestoneName: { type: String, default: '' },
         billingFrequency: { type: String, default: '' },
+        scheduleKey: { type: String, default: '' },
+        scheduleDate: { type: Date, default: null },
+        periodStart: { type: Date, default: null },
+        periodEnd: { type: Date, default: null },
         notes: { type: String, default: '' }
     },
     { timestamps: true }
@@ -155,6 +163,9 @@ const projectEngagementSchema = new mongoose.Schema(
             enum: ['Milestone', 'Monthly', 'Quarterly', 'Annual'],
             default: 'Milestone'
         },
+        recurringInvoiceAmount: { type: Number, default: 0 },
+        invoiceTaxRate: { type: Number, default: 18 },
+        invoiceDueDays: { type: Number, default: 15 },
         paymentTerms: { type: String, default: '' },
         milestones: { type: [milestoneSchema], default: [] },
         invoices: { type: [invoiceSchema], default: [] },
@@ -244,7 +255,7 @@ const customerSchema = new mongoose.Schema(
         documents: { type: [documentSchema], default: [] },
         projectEngagements: { type: [projectEngagementSchema], default: [] }
     },
-    { timestamps: true }
+    { timestamps: true, optimisticConcurrency: true }
 );
 
 module.exports = mongoose.model('Customer', customerSchema);
