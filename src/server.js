@@ -30,6 +30,10 @@ const {
 const {
     scheduleLeadFollowUpReminders
 } = require('./shared/services/leadFollowUp.cron');
+const {
+    runInvoiceGeneration,
+    scheduleInvoiceGeneration
+} = require('./shared/services/invoiceGeneration.cron');
 // const seedDepartmentsAndEmployees = require('./seeders/departmentAndEmployeeSeeder.js');
 const PORT = process.env.PORT || 5000;
 
@@ -62,6 +66,8 @@ const startServer = async () => {
             scheduleTaskDeadlineReminders();
             scheduleApprovalEscalations();
             scheduleLeadFollowUpReminders();
+            scheduleInvoiceGeneration();
+            runInvoiceGeneration();
         });
     } catch (error) {
         console.error('Server startup failed:', error);

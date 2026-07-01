@@ -277,17 +277,52 @@ const addOpportunity = async (customerId, payload) => {
     return getCustomerById(customerId);
 };
 
-const nextInvoiceNumber = (customer) => {
+const nextInvoiceNumber = (customer, invoiceDate = new Date()) => {
     const invoiceCount = (customer.projectEngagements || []).reduce(
         (count, engagement) => count + (engagement.invoices || []).length,
         0
     );
-    return `INV-${new Date().getFullYear()}-${String(invoiceCount + 1).padStart(4, '0')}`;
+    return `INV-${invoiceDate.getFullYear()}-${String(invoiceCount + 1).padStart(4, '0')}`;
+};
+
+const startOfDay = (value = new Date()) => {
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) {
+        throw new AppError('A valid billing date is required', 400);
+    }
+    date.setHours(0, 0, 0, 0);
+    return date;
+};
+
+const dateKey = (value) => {
+    const date = new Date(value);
+    return [
+        date.getFullYear(),
+        String(date.getMonth() + 1).padStart(2, '0'),
+        String(date.getDate()).padStart(2, '0')
+    ].join('-');
+};
+
+const addAnchoredMonths = (startDate, monthCount) => {
+    const start = startOfDay(startDate);
+    const target = new Date(
+        start.getFullYear(),
+        start.getMonth() + monthCount,
+        1
+    );
+    const lastDay = new Date(
+        target.getFullYear(),
+        target.getMonth() + 1,
+        0
+    ).getDate();
+    target.setDate(Math.min(start.getDate(), lastDay));
+    return target;
 };
 
 const calculateInvoiceAmounts = (amount, taxRate = 18) => {
-    const taxableAmount = Number(amount || 0);
-    const taxAmount = Math.round((taxableAmount * Number(taxRate || 0)) / 100);
+    const taxableAmount = Math.round(Number(amount || 0) * 100) / 100;
+    const taxAmount =
+        Math.round(((taxableAmount * Number(taxRate || 0)) / 100) * 100) / 100;
     return {
         amount: taxableAmount,
         taxableAmount,
@@ -305,17 +340,113 @@ const addProjectEngagement = async (customerId, payload) => {
         throw new AppError('Project name is required', 400);
     }
 
+    const projectValue = Number(payload.projectValue || 0);
+    if (projectValue <= 0) {
+        throw new AppError('Project value must be greater than zero', 400);
+    }
+
+    const billingFrequency = payload.billingFrequency || 'Milestone';
+    const contractStartDate = payload.contractStartDate
+        ? startOfDay(payload.contractStartDate)
+        : null;
+    const contractEndDate = payload.contractEndDate
+        ? startOfDay(payload.contractEndDate)
+        : null;
+
+    if (
+        contractStartDate &&
+        contractEndDate &&
+        contractEndDate < contractStartDate
+    ) {
+        throw new AppError(
+            'Contract end date cannot be before the start date',
+            400
+        );
+    }
+    const invoiceTaxRate = Number(payload.invoiceTaxRate ?? 18);
+    const invoiceDueDays = Number(payload.invoiceDueDays ?? 15);
+    if (invoiceTaxRate < 0 || invoiceDueDays < 0) {
+        throw new AppError(
+            'Invoice tax rate and due days cannot be negative',
+            400
+        );
+    }
+
+    let milestones = [];
+    let recurringInvoiceAmount = 0;
+    if (billingFrequency === 'Milestone') {
+        milestones = (payload.milestones || []).map((milestone) => ({
+            name: String(milestone.name || '').trim(),
+            percentage: Number(milestone.percentage || 0),
+            dueDate: milestone.dueDate ? startOfDay(milestone.dueDate) : null
+        }));
+        if (
+            milestones.length === 0 ||
+            milestones.some(
+                (milestone) =>
+                    !milestone.name ||
+                    milestone.percentage <= 0 ||
+                    !milestone.dueDate
+            )
+        ) {
+            throw new AppError(
+                'Every milestone requires a name, positive percentage, and due date',
+                400
+            );
+        }
+        const percentageTotal = milestones.reduce(
+            (sum, milestone) => sum + milestone.percentage,
+            0
+        );
+        if (Math.abs(percentageTotal - 100) > 0.001) {
+            throw new AppError(
+                `Milestone percentages must total 100% (currently ${percentageTotal}%)`,
+                400
+            );
+        }
+        if (
+            milestones.some(
+                (milestone) =>
+                    (contractStartDate &&
+                        milestone.dueDate < contractStartDate) ||
+                    (contractEndDate && milestone.dueDate > contractEndDate)
+            )
+        ) {
+            throw new AppError(
+                'Milestone dates must fall within the contract dates',
+                400
+            );
+        }
+    } else {
+        if (!contractStartDate) {
+            throw new AppError(
+                'Contract start date is required for recurring billing',
+                400
+            );
+        }
+        recurringInvoiceAmount = Number(payload.recurringInvoiceAmount || 0);
+        if (recurringInvoiceAmount <= 0) {
+            throw new AppError(
+                'Recurring invoice amount must be greater than zero',
+                400
+            );
+        }
+    }
+
     const customer = await Customer.findById(customerId);
     if (!customer) throw new AppError('Customer not found', 404);
 
     customer.projectEngagements.push({
-        projectName: payload.projectName,
-        projectValue: Number(payload.projectValue || 0),
-        contractStartDate: payload.contractStartDate || null,
-        contractEndDate: payload.contractEndDate || null,
-        billingFrequency: payload.billingFrequency || 'Milestone',
+        projectName: payload.projectName.trim(),
+        projectValue,
+        contractStartDate,
+        contractEndDate,
+        billingFrequency,
+        recurringInvoiceAmount,
+        invoiceTaxRate,
+        invoiceDueDays,
         paymentTerms: payload.paymentTerms || '',
-        milestones: payload.milestones || [],
+        milestones,
         contractDocuments: payload.contractDocuments || [],
         status: payload.status || 'Active'
     });
@@ -324,18 +455,16 @@ const addProjectEngagement = async (customerId, payload) => {
     return getCustomerById(customerId);
 };
 
-const generateInvoices = async (customerId, engagementId, payload = {}) => {
-    const customer = await Customer.findById(customerId);
-    if (!customer) throw new AppError('Customer not found', 404);
-
-    const engagement = customer.projectEngagements.id(engagementId);
-    if (!engagement) throw new AppError('Project engagement not found', 404);
-
-    const taxRate = Number(payload.taxRate ?? 18);
-    const dueDays = Number(payload.dueDays ?? 15);
-    const invoiceDate = payload.invoiceDate
-        ? new Date(payload.invoiceDate)
-        : new Date();
+const generateDueInvoicesForEngagement = (
+    customer,
+    engagement,
+    payload = {}
+) => {
+    const taxRate = Number(payload.taxRate ?? engagement.invoiceTaxRate ?? 18);
+    const dueDays = Number(payload.dueDays ?? engagement.invoiceDueDays ?? 15);
+    const invoiceDate = startOfDay(
+        payload.asOfDate || payload.invoiceDate || new Date()
+    );
     const buildDueDate = (baseDate = invoiceDate) => {
         const dueDate = new Date(baseDate);
         dueDate.setDate(dueDate.getDate() + dueDays);
@@ -348,23 +477,41 @@ const generateInvoices = async (customerId, engagementId, payload = {}) => {
         engagement.milestones.forEach((milestone) => {
             if (milestone.status === 'Invoiced' || milestone.status === 'Paid')
                 return;
+            if (
+                !milestone.dueDate ||
+                startOfDay(milestone.dueDate) > invoiceDate
+            )
+                return;
+
+            const scheduleKey = `milestone:${milestone._id}`;
+            if (
+                engagement.invoices.some(
+                    (invoice) => invoice.scheduleKey === scheduleKey
+                )
+            )
+                return;
+
             const baseAmount =
                 (Number(engagement.projectValue || 0) *
                     Number(milestone.percentage || 0)) /
                 100;
             const invoice = {
-                invoiceNumber: nextInvoiceNumber(customer),
+                invoiceNumber: nextInvoiceNumber(customer, invoiceDate),
                 projectName: engagement.projectName,
                 invoiceDate,
-                dueDate: buildDueDate(milestone.dueDate || invoiceDate),
+                dueDate: buildDueDate(),
                 paymentStatus: 'Pending',
                 milestoneName: milestone.name,
                 billingFrequency: engagement.billingFrequency,
+                scheduleKey,
+                scheduleDate: milestone.dueDate,
                 notes: `${milestone.percentage}% milestone invoice`,
                 ...calculateInvoiceAmounts(baseAmount, taxRate)
             };
             engagement.invoices.push(invoice);
             milestone.status = 'Invoiced';
+            milestone.invoiceNumber = invoice.invoiceNumber;
+            milestone.invoicedAt = invoiceDate;
             generated.push(invoice);
         });
     } else {
@@ -375,20 +522,91 @@ const generateInvoices = async (customerId, engagementId, payload = {}) => {
         };
         const months = frequencyMonths[engagement.billingFrequency] || 1;
         const installmentAmount = Number(
-            payload.amount || engagement.projectValue || 0
+            engagement.recurringInvoiceAmount || 0
         );
-        const invoice = {
-            invoiceNumber: nextInvoiceNumber(customer),
-            projectName: engagement.projectName,
-            invoiceDate,
-            dueDate: buildDueDate(invoiceDate),
-            paymentStatus: 'Pending',
-            billingFrequency: engagement.billingFrequency,
-            notes: `${engagement.billingFrequency} recurring invoice for next ${months} month cycle`,
-            ...calculateInvoiceAmounts(installmentAmount, taxRate)
-        };
-        engagement.invoices.push(invoice);
-        generated.push(invoice);
+        if (!engagement.contractStartDate || installmentAmount <= 0) {
+            throw new AppError(
+                'Recurring billing requires a contract start date and recurring invoice amount',
+                400
+            );
+        }
+
+        const contractEnd = engagement.contractEndDate
+            ? startOfDay(engagement.contractEndDate)
+            : null;
+        let cycleIndex = 0;
+        let periodStart = addAnchoredMonths(
+            engagement.contractStartDate,
+            cycleIndex
+        );
+
+        while (
+            periodStart <= invoiceDate &&
+            (!contractEnd || periodStart <= contractEnd)
+        ) {
+            const nextPeriodStart = addAnchoredMonths(
+                engagement.contractStartDate,
+                cycleIndex + months
+            );
+            const scheduleKey = `recurring:${engagement.billingFrequency.toLowerCase()}:${dateKey(periodStart)}`;
+            const alreadyGenerated = engagement.invoices.some(
+                (invoice) => invoice.scheduleKey === scheduleKey
+            );
+
+            if (!alreadyGenerated) {
+                const calculatedPeriodEnd = new Date(
+                    nextPeriodStart.getTime() - 1
+                );
+                const periodEnd =
+                    contractEnd && calculatedPeriodEnd > contractEnd
+                        ? contractEnd
+                        : calculatedPeriodEnd;
+                const invoice = {
+                    invoiceNumber: nextInvoiceNumber(customer, invoiceDate),
+                    projectName: engagement.projectName,
+                    invoiceDate,
+                    dueDate: buildDueDate(),
+                    paymentStatus: 'Pending',
+                    billingFrequency: engagement.billingFrequency,
+                    scheduleKey,
+                    scheduleDate: periodStart,
+                    periodStart,
+                    periodEnd,
+                    notes: `${engagement.billingFrequency} recurring invoice for ${dateKey(periodStart)}`,
+                    ...calculateInvoiceAmounts(installmentAmount, taxRate)
+                };
+                engagement.invoices.push(invoice);
+                generated.push(invoice);
+            }
+
+            cycleIndex += months;
+            periodStart = addAnchoredMonths(
+                engagement.contractStartDate,
+                cycleIndex
+            );
+        }
+    }
+
+    return generated;
+};
+
+const generateInvoices = async (customerId, engagementId, payload = {}) => {
+    const customer = await Customer.findById(customerId);
+    if (!customer) throw new AppError('Customer not found', 404);
+
+    const engagement = customer.projectEngagements.id(engagementId);
+    if (!engagement) throw new AppError('Project engagement not found', 404);
+
+    const generated = generateDueInvoicesForEngagement(
+        customer,
+        engagement,
+        payload
+    );
+    if (generated.length === 0) {
+        throw new AppError(
+            'No billing periods or milestones are due on the selected date',
+            400
+        );
     }
 
     customer.revenueSummary.outstandingAmount =
@@ -402,8 +620,49 @@ const generateInvoices = async (customerId, engagementId, payload = {}) => {
     return getCustomerById(customerId);
 };
 
+const generateAllDueInvoices = async (asOfDate = new Date()) => {
+    const customers = await Customer.find({
+        'projectEngagements.status': 'Active'
+    });
+    let generatedCount = 0;
+
+    for (const customer of customers) {
+        let customerChanged = false;
+        for (const engagement of customer.projectEngagements || []) {
+            if (engagement.status !== 'Active') continue;
+            let generated;
+            try {
+                generated = generateDueInvoicesForEngagement(
+                    customer,
+                    engagement,
+                    { asOfDate }
+                );
+            } catch (error) {
+                if (error.statusCode === 400) continue;
+                throw error;
+            }
+            if (generated.length === 0) continue;
+
+            generatedCount += generated.length;
+            customerChanged = true;
+            customer.revenueSummary.outstandingAmount =
+                Number(customer.revenueSummary.outstandingAmount || 0) +
+                generated.reduce(
+                    (sum, invoice) => sum + Number(invoice.totalAmount || 0),
+                    0
+                );
+        }
+        if (customerChanged) await customer.save();
+    }
+
+    return generatedCount;
+};
+
 const addPaymentRecord = async (customerId, engagementId, payload) => {
-    if (!payload.amount) throw new AppError('Payment amount is required', 400);
+    const amount = Number(payload.amount || 0);
+    if (amount <= 0) {
+        throw new AppError('Payment amount must be greater than zero', 400);
+    }
 
     const customer = await Customer.findById(customerId);
     if (!customer) throw new AppError('Customer not found', 404);
@@ -411,7 +670,30 @@ const addPaymentRecord = async (customerId, engagementId, payload) => {
     const engagement = customer.projectEngagements.id(engagementId);
     if (!engagement) throw new AppError('Project engagement not found', 404);
 
-    const amount = Number(payload.amount || 0);
+    let invoice = null;
+    if (payload.invoiceNumber) {
+        invoice = engagement.invoices.find(
+            (item) => item.invoiceNumber === payload.invoiceNumber
+        );
+        if (!invoice) throw new AppError('Invoice not found', 404);
+
+        const previouslyPaid = (engagement.payments || [])
+            .filter(
+                (payment) => payment.invoiceNumber === payload.invoiceNumber
+            )
+            .reduce((sum, payment) => sum + Number(payment.amount || 0), 0);
+        const remainingAmount = Math.max(
+            0,
+            Number(invoice.totalAmount || 0) - previouslyPaid
+        );
+        if (amount > remainingAmount + 0.001) {
+            throw new AppError(
+                `Payment exceeds the remaining invoice balance of ${remainingAmount.toFixed(2)}`,
+                400
+            );
+        }
+    }
+
     engagement.payments.push({
         invoiceNumber: payload.invoiceNumber || '',
         paymentDate: payload.paymentDate || new Date(),
@@ -421,13 +703,31 @@ const addPaymentRecord = async (customerId, engagementId, payload) => {
         notes: payload.notes || ''
     });
 
-    if (payload.invoiceNumber) {
-        const invoice = engagement.invoices.find(
-            (item) => item.invoiceNumber === payload.invoiceNumber
+    if (invoice) {
+        const paidAmount = (engagement.payments || [])
+            .filter(
+                (payment) => payment.invoiceNumber === payload.invoiceNumber
+            )
+            .reduce((sum, payment) => sum + Number(payment.amount || 0), 0);
+        invoice.paidAmount = Math.min(
+            paidAmount,
+            Number(invoice.totalAmount || 0)
         );
-        if (invoice) {
-            invoice.paymentStatus =
-                amount >= invoice.totalAmount ? 'Paid' : 'Partially Paid';
+        invoice.paymentStatus =
+            invoice.paidAmount >= Number(invoice.totalAmount || 0) - 0.001
+                ? 'Paid'
+                : 'Partially Paid';
+
+        if (
+            invoice.paymentStatus === 'Paid' &&
+            invoice.scheduleKey?.startsWith('milestone:')
+        ) {
+            const milestoneId = invoice.scheduleKey.split(':')[1];
+            const milestone = engagement.milestones.id(milestoneId);
+            if (milestone) {
+                milestone.status = 'Paid';
+                milestone.paidAt = payload.paymentDate || new Date();
+            }
         }
     }
 
@@ -479,7 +779,9 @@ module.exports = {
     addTransaction,
     addOpportunity,
     addProjectEngagement,
+    generateDueInvoicesForEngagement,
     generateInvoices,
+    generateAllDueInvoices,
     addPaymentRecord,
     getInvoicePreview
 };

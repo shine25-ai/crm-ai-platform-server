@@ -11,6 +11,27 @@ router.get(
     authorize('communications:read'),
     communicationController.listEmailTemplates
 );
+
+router.get(
+    '/settings',
+    authorize('settings:read', 'communications:read'),
+    communicationController.getSettings
+);
+router.put(
+    '/settings',
+    authorize('settings:write'),
+    communicationController.updateSettings
+);
+router.post(
+    '/settings/test',
+    authorize('settings:write'),
+    communicationController.testSettings
+);
+router.post(
+    '/send',
+    authorize('communications:write'),
+    communicationController.sendCommunication
+);
 router.post(
     '/email-templates',
     authorize('communications:write'),
