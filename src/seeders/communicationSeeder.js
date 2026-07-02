@@ -4,6 +4,7 @@ const User = require('../modules/users/user.model');
 const {
     EmailTemplate,
     WhatsAppTemplate,
+    InvoiceTemplate,
     EmailLog,
     WhatsAppLog
 } = require('../modules/communications/communication.model');
@@ -100,6 +101,69 @@ const seedCommunications = async () => {
                 createdBy: owner
             }
         ]);
+
+        const invoiceTemplatePresets = [
+            {
+                name: 'Professional Indigo',
+                title: 'CRM AI Platform',
+                subtitle: 'Invoice {{invoiceNumber}} · {{projectName}}',
+                primaryColor: '#4F46E5',
+                footerText:
+                    'Thank you {{customerName}}. Payment of {{totalAmount}} is due by {{dueDate}}.',
+                status: 'Active',
+                createdBy: owner
+            },
+            {
+                name: 'Corporate Blue',
+                title: '{{companyName}} Project Invoice',
+                subtitle: '{{projectName}} · {{invoiceDate}}',
+                primaryColor: '#2563EB',
+                footerText:
+                    'Invoice {{invoiceNumber}} was prepared for {{customerName}}.',
+                status: 'Active',
+                createdBy: owner
+            },
+            {
+                name: 'Emerald Consulting',
+                title: 'Consulting Services',
+                subtitle: '{{projectName}} billing statement',
+                primaryColor: '#059669',
+                footerText:
+                    'We appreciate your business. Total payable: {{totalAmount}}.',
+                status: 'Active',
+                createdBy: owner
+            },
+            {
+                name: 'Minimal Slate',
+                title: 'INVOICE',
+                subtitle: '{{invoiceNumber}}',
+                primaryColor: '#475569',
+                footerText:
+                    'Due {{dueDate}} · Please reference {{invoiceNumber}} with your payment.',
+                status: 'Active',
+                createdBy: owner
+            }
+        ];
+
+        await InvoiceTemplate.bulkWrite(
+            invoiceTemplatePresets.map((template) => ({
+                updateOne: {
+                    filter: { name: template.name },
+                    update: { $setOnInsert: template },
+                    upsert: true
+                }
+            }))
+        );
+
+        const defaultInvoiceTemplate = await InvoiceTemplate.findOne({
+            isDefault: true
+        });
+        if (!defaultInvoiceTemplate) {
+            await InvoiceTemplate.findOneAndUpdate(
+                { name: 'Professional Indigo' },
+                { $set: { isDefault: true } }
+            );
+        }
 
         const emailLogs = [];
         if (customer) {

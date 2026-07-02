@@ -124,6 +124,12 @@ const invoiceSchema = new mongoose.Schema(
         scheduleDate: { type: Date, default: null },
         periodStart: { type: Date, default: null },
         periodEnd: { type: Date, default: null },
+        templateId: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'InvoiceTemplate',
+            default: null
+        },
+        templateName: { type: String, default: '' },
         notes: { type: String, default: '' }
     },
     { timestamps: true }

@@ -70,6 +70,27 @@ router.delete(
 );
 
 router
+    .route('/invoice-templates')
+    .get(
+        authorize('communications:read', 'customers:read'),
+        communicationController.listInvoiceTemplates
+    )
+    .post(
+        authorize('communications:write'),
+        communicationController.createInvoiceTemplate
+    );
+router
+    .route('/invoice-templates/:id')
+    .put(
+        authorize('communications:write'),
+        communicationController.updateInvoiceTemplate
+    )
+    .delete(
+        authorize('communications:write'),
+        communicationController.deleteInvoiceTemplate
+    );
+
+router
     .route('/email-logs')
     .get(
         authorize('communications:read'),

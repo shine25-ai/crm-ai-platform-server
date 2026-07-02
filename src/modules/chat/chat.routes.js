@@ -15,6 +15,10 @@ router.get('/messages/:otherUserId', chatController.getMessages);
 router.post('/mark-read/:senderId', chatController.markRead);
 router.post('/send', chatUpload.single('file'), chatController.sendMessage);
 
+router.get('/calls', chatController.listCalls);
+router.post('/calls', chatController.startCall);
+router.patch('/calls/:id', chatController.updateCall);
+
 // Message Reactions
 router.post('/reactions', chatController.toggleReaction);
 

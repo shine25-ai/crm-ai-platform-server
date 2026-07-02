@@ -26,6 +26,10 @@ const formatMoney = (value) =>
     }).format(Number(value || 0));
 
 const renderInvoicePreview = ({ customer, engagement, invoice }) => {
+    const template = invoice.templateId || {};
+    const primaryColor = /^#[0-9a-f]{6}$/i.test(template.primaryColor || '')
+        ? template.primaryColor
+        : '#4F46E5';
     const address = customer.billingAddress || {};
     const billingAddress = [
         address.line1,
@@ -38,6 +42,29 @@ const renderInvoicePreview = ({ customer, engagement, invoice }) => {
         .filter(Boolean)
         .map(escapeHtml)
         .join('<br />');
+    const templateContext = {
+        customername: customer.customerName,
+        companyname: customer.companyName,
+        invoicenumber: invoice.invoiceNumber,
+        projectname: engagement.projectName,
+        milestonename: invoice.milestoneName || '',
+        invoicedate: formatDate(invoice.invoiceDate),
+        duedate: formatDate(invoice.dueDate),
+        totalamount: formatMoney(invoice.totalAmount)
+    };
+    const templateText = (value, fallback) =>
+        escapeHtml(
+            String(value || fallback).replace(
+                /{{\s*([^}]+)\s*}}/g,
+                (match, key) =>
+                    templateContext[
+                        String(key)
+                            .trim()
+                            .toLowerCase()
+                            .replace(/[._\s-]/g, '')
+                    ] ?? match
+            )
+        );
 
     return `<!doctype html>
 <html>
@@ -51,7 +78,7 @@ const renderInvoicePreview = ({ customer, engagement, invoice }) => {
     .toolbar { position: sticky; top: 0; z-index: 2; display: flex; justify-content: flex-end; gap: 10px; padding: 14px 22px; background: rgba(255,255,255,.92); border-bottom: 1px solid #e2e8f0; }
     button { border: 0; border-radius: 8px; padding: 10px 14px; background: #4f46e5; color: #fff; font-weight: 800; cursor: pointer; }
     .invoice { width: min(920px, calc(100vw - 28px)); margin: 24px auto; background: #fff; border: 1px solid #dbe4f0; border-radius: 16px; overflow: hidden; box-shadow: 0 24px 70px rgba(15,23,42,.12); }
-    .hero { display: grid; grid-template-columns: 1.4fr .8fr; gap: 20px; padding: 34px; background: linear-gradient(135deg, #111827, #4338ca); color: #fff; }
+    .hero { display: grid; grid-template-columns: 1.4fr .8fr; gap: 20px; padding: 34px; background: linear-gradient(135deg, #111827, ${primaryColor}); color: #fff; }
     .brand { font-size: 28px; font-weight: 900; letter-spacing: .2px; }
     .muted { color: #64748b; }
     .hero .muted { color: #c7d2fe; }
@@ -91,8 +118,8 @@ const renderInvoicePreview = ({ customer, engagement, invoice }) => {
   <main class="invoice">
     <section class="hero">
       <div>
-        <p class="brand">CRM AI Platform</p>
-        <p class="muted">Project billing invoice</p>
+        <p class="brand">${templateText(template.title, 'CRM AI Platform')}</p>
+        <p class="muted">${templateText(template.subtitle, 'Project billing invoice')}</p>
       </div>
       <div class="number">
         <p class="muted">Invoice Number</p>
@@ -141,7 +168,7 @@ const renderInvoicePreview = ({ customer, engagement, invoice }) => {
     </section>
     <section class="footer">
       <p>Payment Terms: ${escapeHtml(engagement.paymentTerms || '-')}</p>
-      <p>This invoice is generated from the customer project engagement record.</p>
+      <p>${templateText(template.footerText, 'This invoice is generated from the customer project engagement record.')}</p>
     </section>
   </main>
 </body>
