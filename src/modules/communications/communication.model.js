@@ -69,6 +69,37 @@ const whatsappTemplateSchema = new mongoose.Schema(
     { timestamps: true }
 );
 
+const invoiceTemplateSchema = new mongoose.Schema(
+    {
+        name: { type: String, required: true, trim: true },
+        title: { type: String, default: 'CRM AI Platform', trim: true },
+        subtitle: {
+            type: String,
+            default: 'Project billing invoice',
+            trim: true
+        },
+        primaryColor: { type: String, default: '#4F46E5', trim: true },
+        footerText: {
+            type: String,
+            default: 'Thank you for your business.',
+            trim: true
+        },
+        isDefault: { type: Boolean, default: false, index: true },
+        status: {
+            type: String,
+            enum: ['Active', 'Inactive'],
+            default: 'Active',
+            index: true
+        },
+        createdBy: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'User',
+            default: null
+        }
+    },
+    { timestamps: true }
+);
+
 const emailLogSchema = new mongoose.Schema(
     {
         sentAt: { type: Date, default: Date.now, index: true },
@@ -205,6 +236,7 @@ module.exports = {
         'WhatsAppTemplate',
         whatsappTemplateSchema
     ),
+    InvoiceTemplate: mongoose.model('InvoiceTemplate', invoiceTemplateSchema),
     EmailLog: mongoose.model('EmailLog', emailLogSchema),
     WhatsAppLog: mongoose.model('WhatsAppLog', whatsappLogSchema),
     CommunicationSetting: mongoose.model(

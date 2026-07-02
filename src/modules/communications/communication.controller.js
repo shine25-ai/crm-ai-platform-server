@@ -116,6 +116,62 @@ const deleteWhatsappTemplate = async (req, res, next) => {
     }
 };
 
+const listInvoiceTemplates = async (req, res, next) => {
+    try {
+        return success(
+            res,
+            'Invoice templates retrieved successfully',
+            await communicationService.listInvoiceTemplates(req.query)
+        );
+    } catch (error) {
+        next(error);
+    }
+};
+
+const createInvoiceTemplate = async (req, res, next) => {
+    try {
+        return success(
+            res,
+            'Invoice template created successfully',
+            await communicationService.createInvoiceTemplate(
+                req.body,
+                req.user.userId
+            ),
+            201
+        );
+    } catch (error) {
+        next(error);
+    }
+};
+
+const updateInvoiceTemplate = async (req, res, next) => {
+    try {
+        return success(
+            res,
+            'Invoice template updated successfully',
+            await communicationService.updateInvoiceTemplate(
+                req.params.id,
+                req.body,
+                req.user.userId
+            )
+        );
+    } catch (error) {
+        next(error);
+    }
+};
+
+const deleteInvoiceTemplate = async (req, res, next) => {
+    try {
+        return success(
+            res,
+            'Invoice template deleted successfully',
+            await communicationService.deleteInvoiceTemplate(req.params.id)
+        );
+    } catch (error) {
+        next(error);
+    }
+};
+
 const listEmailLogs = async (req, res, next) => {
     try {
         return success(
@@ -253,6 +309,10 @@ module.exports = {
     createWhatsappTemplate,
     updateWhatsappTemplate,
     deleteWhatsappTemplate,
+    listInvoiceTemplates,
+    createInvoiceTemplate,
+    updateInvoiceTemplate,
+    deleteInvoiceTemplate,
     listEmailLogs,
     createEmailLog,
     listWhatsappLogs,

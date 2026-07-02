@@ -6,6 +6,7 @@ const ChatMessage = require('../modules/chat/chatMessage.model');
 const ChatMessageRead = require('../modules/chat/chatMessageRead.model');
 const ChatReaction = require('../modules/chat/chatReaction.model');
 const ChatGroup = require('../modules/chat/chatGroup.model');
+const ChatCall = require('../modules/chat/chatCall.model');
 const User = require('../modules/users/user.model');
 const notificationService = require('../modules/notifications/notification.service');
 const chatService = require('../modules/chat/chat.service');
@@ -88,6 +89,64 @@ const initSocket = (server) => {
                 console.log(`User ${userId} left room ${conversationId}`);
             }
         });
+
+        // Authenticated peer-to-peer voice-call signalling. Media travels
+        // directly between browsers; Socket.IO only relays WebRTC metadata.
+        socket.on('call_offer', async ({ receiverId, callId, offer }) => {
+            if (!receiverId || !callId || !offer) return;
+            if (!/^[a-f\d]{24}$/i.test(callId)) return;
+            const call = await ChatCall.findOne({
+                _id: callId,
+                callerId: userId,
+                receiverId,
+                status: 'Ringing'
+            }).lean();
+            if (!call) return;
+            io.to(String(receiverId)).emit('call_offer', {
+                callId,
+                callerId: userId,
+                offer
+            });
+        });
+
+        socket.on('call_answer', async ({ callerId, callId, answer }) => {
+            if (!callerId || !callId || !answer) return;
+            if (!/^[a-f\d]{24}$/i.test(callId)) return;
+            const call = await ChatCall.findOne({
+                _id: callId,
+                callerId,
+                receiverId: userId,
+                status: { $in: ['Ringing', 'Answered'] }
+            }).lean();
+            if (!call) return;
+            io.to(String(callerId)).emit('call_answer', {
+                callId,
+                receiverId: userId,
+                answer
+            });
+        });
+
+        socket.on(
+            'call_ice_candidate',
+            async ({ targetUserId, callId, candidate }) => {
+                if (!targetUserId || !callId || !candidate) return;
+                if (!/^[a-f\d]{24}$/i.test(callId)) return;
+                const call = await ChatCall.findOne({
+                    _id: callId,
+                    status: { $in: ['Ringing', 'Answered'] },
+                    $or: [
+                        { callerId: userId, receiverId: targetUserId },
+                        { callerId: targetUserId, receiverId: userId }
+                    ]
+                }).lean();
+                if (!call) return;
+                io.to(String(targetUserId)).emit('call_ice_candidate', {
+                    callId,
+                    senderId: userId,
+                    candidate
+                });
+            }
+        );
 
         // ── Messaging ─────────────────────────────────────────────────────────
         socket.on('send_message', async (data) => {

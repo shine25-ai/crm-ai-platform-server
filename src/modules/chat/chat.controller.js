@@ -1,4 +1,5 @@
 const chatService = require('./chat.service');
+const chatCallService = require('./chatCall.service');
 const User = require('../users/user.model');
 const ApiResponse = require('../../shared/utils/response');
 
@@ -256,6 +257,47 @@ const uploadAttachment = async (req, res, next) => {
     }
 };
 
+const listCalls = async (req, res, next) => {
+    try {
+        return ApiResponse.success(
+            res,
+            'Call history retrieved successfully',
+            await chatCallService.listCalls(req.user.userId, req.query)
+        );
+    } catch (error) {
+        next(error);
+    }
+};
+
+const startCall = async (req, res, next) => {
+    try {
+        return ApiResponse.success(
+            res,
+            'Call started successfully',
+            await chatCallService.startCall(req.user.userId, req.body),
+            201
+        );
+    } catch (error) {
+        next(error);
+    }
+};
+
+const updateCall = async (req, res, next) => {
+    try {
+        return ApiResponse.success(
+            res,
+            'Call updated successfully',
+            await chatCallService.updateCall(
+                req.user.userId,
+                req.params.id,
+                req.body.status
+            )
+        );
+    } catch (error) {
+        next(error);
+    }
+};
+
 module.exports = {
     getContacts,
     getMessages,
@@ -269,5 +311,8 @@ module.exports = {
     deleteGroup,
     toggleReaction,
     uploadAttachment,
-    getGroupMembers
+    getGroupMembers,
+    listCalls,
+    startCall,
+    updateCall
 };
