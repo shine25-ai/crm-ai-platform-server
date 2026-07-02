@@ -29,7 +29,10 @@ const notificationSchema = new mongoose.Schema(
                 'Attendance Missing',
                 'Approval Request',
                 'Meeting Reminder',
-                'New Message'
+                'New Message',
+                'Asset Assigned',
+                'Asset Returned',
+                'Asset Status Updated'
             ],
             required: true
         },
@@ -44,7 +47,7 @@ const notificationSchema = new mongoose.Schema(
         },
         referenceType: {
             type: String,
-            enum: ['Task', 'Approval', 'Employee', 'System', 'Chat'],
+            enum: ['Task', 'Approval', 'Employee', 'System', 'Chat', 'Asset'],
             default: 'System'
         },
         // Frontend navigation URL for this notification

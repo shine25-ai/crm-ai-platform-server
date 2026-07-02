@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const employeeController = require('./employee.controller');
+const assetController = require('../assets/asset.controller');
 const authMiddleware = require('../../shared/middleware/auth.middleware');
 const authorize = require('../../shared/middleware/permission.middleware');
 
@@ -204,6 +205,33 @@ router.post(
     '/:id/resend-onboarding',
     authorize('employees:write'),
     employeeController.resendOnboarding
+);
+
+// Employee Assets Sub-routes
+router.get(
+    '/:employeeId/assets',
+    authorize('employees:read', 'assets:read'),
+    assetController.getEmployeeAssets
+);
+router.post(
+    '/:employeeId/assets',
+    authorize('assets:write'),
+    assetController.assignAsset
+);
+router.put(
+    '/:employeeId/assets/:assignmentId',
+    authorize('assets:write'),
+    assetController.updateAssetAssignment
+);
+router.post(
+    '/:employeeId/assets/:assignmentId/return',
+    authorize('assets:write'),
+    assetController.returnAsset
+);
+router.get(
+    '/:employeeId/assets/history',
+    authorize('employees:read', 'assets:read'),
+    assetController.getEmployeeAssetHistory
 );
 
 module.exports = router;
