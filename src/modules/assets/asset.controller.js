@@ -270,6 +270,28 @@ const getAssetHistory = async (req, res, next) => {
     }
 };
 
+const reportAssetIssue = async (req, res, next) => {
+    try {
+        await checkEmployeeAccess(req, req.params.employeeId);
+        if (!req.body.remarks) {
+            throw new AppError('Issue description (remarks) is required', 400);
+        }
+        const assignment = await assetService.reportAssetIssue(
+            req.params.employeeId,
+            req.params.assignmentId,
+            req.body,
+            req.user
+        );
+        res.status(200).json({
+            success: true,
+            message: 'Issue reported successfully',
+            data: assignment
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
 module.exports = {
     getAssets,
     getAssetById,
@@ -280,6 +302,7 @@ module.exports = {
     assignAsset,
     updateAssetAssignment,
     returnAsset,
+    reportAssetIssue,
     getEmployeeAssetHistory,
     getAssetHistory
 };

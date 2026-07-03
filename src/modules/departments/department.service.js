@@ -5,10 +5,35 @@ const AppError = require('../../shared/utils/appError');
 /**
  * Get all departments with the departmentHead populated (name, designation, employeeId).
  */
-const getAllDepartments = async () => {
-    return await Department.find({})
-        .populate('departmentHead', 'name designation employeeId')
-        .sort({ createdAt: -1 });
+const getAllDepartments = async (filters = {}) => {
+    const query = {};
+
+    if (filters.search) {
+        const regex = new RegExp(filters.search, 'i');
+        query.$or = [{ departmentName: regex }, { description: regex }];
+    }
+
+    if (filters.status) query.status = filters.status;
+
+    const page = Math.max(1, parseInt(filters.page) || 1);
+    const limit = Math.max(1, parseInt(filters.limit) || 10);
+    const skip = (page - 1) * limit;
+
+    const [departments, total] = await Promise.all([
+        Department.find(query)
+            .populate('departmentHead', 'name designation employeeId')
+            .sort({ createdAt: -1 })
+            .skip(skip)
+            .limit(limit),
+        Department.countDocuments(query)
+    ]);
+
+    return {
+        departments,
+        total,
+        page,
+        totalPages: Math.ceil(total / limit)
+    };
 };
 
 /**
