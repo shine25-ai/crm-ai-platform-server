@@ -1,6 +1,7 @@
 const {
     EmailTemplate,
     WhatsAppTemplate,
+    InvoiceTemplate,
     EmailLog,
     WhatsAppLog,
     CommunicationSetting,
@@ -347,6 +348,61 @@ const deleteWhatsappTemplate = async (id) => {
     return { success: true };
 };
 
+const listInvoiceTemplates = (filters = {}) =>
+    populateTemplate(
+        InvoiceTemplate.find(buildQuery(filters)).sort({
+            isDefault: -1,
+            createdAt: -1
+        })
+    );
+
+const normalizeInvoiceTemplate = (payload = {}, userId) => {
+    if (!payload.name?.trim()) {
+        throw new AppError('Invoice template name is required', 400);
+    }
+    if (!/^#[0-9a-f]{6}$/i.test(payload.primaryColor || '#4F46E5')) {
+        throw new AppError('Primary color must be a valid hex color', 400);
+    }
+    return {
+        name: payload.name.trim(),
+        title: payload.title || 'CRM AI Platform',
+        subtitle: payload.subtitle || 'Project billing invoice',
+        primaryColor: payload.primaryColor || '#4F46E5',
+        footerText: payload.footerText || 'Thank you for your business.',
+        isDefault: Boolean(payload.isDefault),
+        status: payload.status || 'Active',
+        createdBy: userId
+    };
+};
+
+const clearOtherDefaultInvoiceTemplates = async (templateId = null) => {
+    const query = templateId ? { _id: { $ne: templateId } } : {};
+    await InvoiceTemplate.updateMany(query, { $set: { isDefault: false } });
+};
+
+const createInvoiceTemplate = async (payload, userId) => {
+    const data = normalizeInvoiceTemplate(payload, userId);
+    if (data.isDefault) await clearOtherDefaultInvoiceTemplates();
+    return InvoiceTemplate.create(data);
+};
+
+const updateInvoiceTemplate = async (id, payload, userId) => {
+    const data = normalizeInvoiceTemplate(payload, userId);
+    if (data.isDefault) await clearOtherDefaultInvoiceTemplates(id);
+    const template = await InvoiceTemplate.findByIdAndUpdate(id, data, {
+        new: true,
+        runValidators: true
+    });
+    if (!template) throw new AppError('Invoice template not found', 404);
+    return template;
+};
+
+const deleteInvoiceTemplate = async (id) => {
+    const template = await InvoiceTemplate.findByIdAndDelete(id);
+    if (!template) throw new AppError('Invoice template not found', 404);
+    return { success: true };
+};
+
 const listEmailLogs = (filters = {}) => {
     const query = {};
     if (filters.deliveryStatus) query.deliveryStatus = filters.deliveryStatus;
@@ -420,18 +476,23 @@ const sendCommunication = async (payload = {}, userId) => {
     if (!['email', 'whatsapp'].includes(channel)) {
         throw new AppError('Channel must be email or whatsapp', 400);
     }
-    if (!payload.templateId) {
-        throw new AppError('Template is required', 400);
-    }
 
     const TemplateModel =
         channel === 'email' ? EmailTemplate : WhatsAppTemplate;
-    const template = await TemplateModel.findOne({
-        _id: payload.templateId,
-        status: 'Active'
-    }).lean();
-    if (!template) throw new AppError('Active template not found', 404);
-    if (channel === 'whatsapp' && template.approvalStatus !== 'Approved') {
+    const template = payload.templateId
+        ? await TemplateModel.findOne({
+              _id: payload.templateId,
+              status: 'Active'
+          }).lean()
+        : null;
+    if (payload.templateId && !template) {
+        throw new AppError('Active template not found', 404);
+    }
+    if (
+        channel === 'whatsapp' &&
+        template &&
+        template.approvalStatus !== 'Approved'
+    ) {
         throw new AppError('Only approved WhatsApp templates can be sent', 400);
     }
 
@@ -447,11 +508,11 @@ const sendCommunication = async (payload = {}, userId) => {
     }
 
     const subject = resolvePlaceholders(
-        payload.subject || template.subject || '',
+        payload.subject || template?.subject || '',
         context
     );
     const body = resolvePlaceholders(
-        payload.body || template.body || '',
+        payload.body || template?.body || '',
         context
     );
     const unresolved = extractPlaceholders(`${subject} ${body}`);
@@ -462,6 +523,9 @@ const sendCommunication = async (payload = {}, userId) => {
         );
     }
     if (!body.trim()) throw new AppError('Message body is required', 400);
+    if (channel === 'email' && !subject.trim()) {
+        throw new AppError('Email subject is required', 400);
+    }
 
     const relatedFields = buildRelatedFields(payload);
     if (channel === 'email') {
@@ -471,40 +535,47 @@ const sendCommunication = async (payload = {}, userId) => {
         ).trim();
         if (!recipient) throw new AppError('Recipient email is required', 400);
         const sender = `"${settings.smtp.fromName}" <${settings.smtp.fromEmail}>`;
+        const log = await EmailLog.create({
+            sender,
+            recipient,
+            subject,
+            body,
+            deliveryStatus: 'Queued',
+            templateId: template?._id || null,
+            createdBy: userId,
+            ...relatedFields
+        });
+        let result;
         try {
-            const result = await createSmtpTransporter(settings).sendMail({
+            result = await createSmtpTransporter(settings).sendMail({
                 from: sender,
                 to: recipient,
                 subject,
                 text: body.replace(/<[^>]*>/g, ''),
                 html: body
             });
-            const log = await EmailLog.create({
-                sender,
-                recipient,
-                subject,
-                body,
-                providerMessageId: result.messageId || '',
-                deliveryStatus: 'Sent',
-                templateId: template._id,
-                createdBy: userId,
-                ...relatedFields
-            });
-            return populateEmailLog(EmailLog.findById(log._id));
         } catch (error) {
-            await EmailLog.create({
-                sender,
-                recipient,
-                subject,
-                body,
-                errorMessage: error.message,
-                deliveryStatus: 'Failed',
-                templateId: template._id,
-                createdBy: userId,
-                ...relatedFields
-            });
+            await EmailLog.updateOne(
+                { _id: log._id },
+                {
+                    $set: {
+                        errorMessage: error.message,
+                        deliveryStatus: 'Failed'
+                    }
+                }
+            ).catch(() => {});
             throw new AppError(`Email delivery failed: ${error.message}`, 502);
         }
+        await EmailLog.updateOne(
+            { _id: log._id },
+            {
+                $set: {
+                    providerMessageId: result.messageId || '',
+                    deliveryStatus: 'Sent'
+                }
+            }
+        ).catch(() => {});
+        return populateEmailLog(EmailLog.findById(log._id));
     }
 
     if (
@@ -522,8 +593,18 @@ const sendCommunication = async (payload = {}, userId) => {
         ''
     );
     if (!recipient) throw new AppError('Recipient mobile is required', 400);
+    const log = await WhatsAppLog.create({
+        templateId: template?._id || null,
+        templateName: template?.name || 'Custom message',
+        recipient,
+        body,
+        deliveryStatus: 'Queued',
+        createdBy: userId,
+        ...relatedFields
+    });
+    let response;
     try {
-        const response = await axios.post(
+        response = await axios.post(
             `${settings.whatsapp.apiBaseUrl}/${settings.whatsapp.phoneNumberId}/messages`,
             {
                 messaging_product: 'whatsapp',
@@ -541,33 +622,31 @@ const sendCommunication = async (payload = {}, userId) => {
                 }
             }
         );
-        const providerMessageId = response.data?.messages?.[0]?.id || '';
-        const log = await WhatsAppLog.create({
-            templateId: template._id,
-            templateName: template.name,
-            recipient,
-            body,
-            providerMessageId,
-            deliveryStatus: 'Sent',
-            createdBy: userId,
-            ...relatedFields
-        });
-        return populateWhatsappLog(WhatsAppLog.findById(log._id));
     } catch (error) {
         const providerError =
             error.response?.data?.error?.message || error.message;
-        await WhatsAppLog.create({
-            templateId: template._id,
-            templateName: template.name,
-            recipient,
-            body,
-            errorMessage: providerError,
-            deliveryStatus: 'Failed',
-            createdBy: userId,
-            ...relatedFields
-        });
+        await WhatsAppLog.updateOne(
+            { _id: log._id },
+            {
+                $set: {
+                    errorMessage: providerError,
+                    deliveryStatus: 'Failed'
+                }
+            }
+        ).catch(() => {});
         throw new AppError(`WhatsApp delivery failed: ${providerError}`, 502);
     }
+    const providerMessageId = response.data?.messages?.[0]?.id || '';
+    await WhatsAppLog.updateOne(
+        { _id: log._id },
+        {
+            $set: {
+                providerMessageId,
+                deliveryStatus: 'Sent'
+            }
+        }
+    ).catch(() => {});
+    return populateWhatsappLog(WhatsAppLog.findById(log._id));
 };
 
 const getCommunicationTimeline = async (relatedType, relatedId) => {
@@ -614,6 +693,10 @@ module.exports = {
     createWhatsappTemplate,
     updateWhatsappTemplate,
     deleteWhatsappTemplate,
+    listInvoiceTemplates,
+    createInvoiceTemplate,
+    updateInvoiceTemplate,
+    deleteInvoiceTemplate,
     listEmailLogs,
     createEmailLog,
     listWhatsappLogs,

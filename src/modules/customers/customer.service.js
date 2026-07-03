@@ -1,4 +1,5 @@
 const Customer = require('./customer.model');
+const { InvoiceTemplate } = require('../communications/communication.model');
 const AppError = require('../../shared/utils/appError');
 const {
     uploadCustomerDocumentToS3,
@@ -523,6 +524,8 @@ const generateDueInvoicesForEngagement = (
                 billingFrequency: engagement.billingFrequency,
                 scheduleKey,
                 scheduleDate: milestone.dueDate,
+                templateId: payload.invoiceTemplate?._id || null,
+                templateName: payload.invoiceTemplate?.name || '',
                 notes: `${milestone.percentage}% milestone invoice`,
                 ...calculateInvoiceAmounts(baseAmount, taxRate)
             };
@@ -590,6 +593,8 @@ const generateDueInvoicesForEngagement = (
                     scheduleDate: periodStart,
                     periodStart,
                     periodEnd,
+                    templateId: payload.invoiceTemplate?._id || null,
+                    templateName: payload.invoiceTemplate?.name || '',
                     notes: `${engagement.billingFrequency} recurring invoice for ${dateKey(periodStart)}`,
                     ...calculateInvoiceAmounts(installmentAmount, taxRate)
                 };
@@ -615,11 +620,23 @@ const generateInvoices = async (customerId, engagementId, payload = {}) => {
     const engagement = customer.projectEngagements.id(engagementId);
     if (!engagement) throw new AppError('Project engagement not found', 404);
 
-    const generated = generateDueInvoicesForEngagement(
-        customer,
-        engagement,
-        payload
-    );
+    const invoiceTemplate = payload.templateId
+        ? await InvoiceTemplate.findOne({
+              _id: payload.templateId,
+              status: 'Active'
+          }).lean()
+        : await InvoiceTemplate.findOne({
+              isDefault: true,
+              status: 'Active'
+          }).lean();
+    if (payload.templateId && !invoiceTemplate) {
+        throw new AppError('Active invoice template not found', 404);
+    }
+
+    const generated = generateDueInvoicesForEngagement(customer, engagement, {
+        ...payload,
+        invoiceTemplate
+    });
     if (generated.length === 0) {
         throw new AppError(
             'No billing periods or milestones are due on the selected date',
@@ -639,6 +656,10 @@ const generateInvoices = async (customerId, engagementId, payload = {}) => {
 };
 
 const generateAllDueInvoices = async (asOfDate = new Date()) => {
+    const invoiceTemplate = await InvoiceTemplate.findOne({
+        isDefault: true,
+        status: 'Active'
+    }).lean();
     const customers = await Customer.find({
         'projectEngagements.status': 'Active'
     });
@@ -653,7 +674,7 @@ const generateAllDueInvoices = async (asOfDate = new Date()) => {
                 generated = generateDueInvoicesForEngagement(
                     customer,
                     engagement,
-                    { asOfDate }
+                    { asOfDate, invoiceTemplate }
                 );
             } catch (error) {
                 if (error.statusCode === 400) continue;
@@ -765,6 +786,7 @@ const addPaymentRecord = async (customerId, engagementId, payload) => {
 const getInvoicePreview = async (customerId, engagementId, invoiceId) => {
     const customer = await Customer.findById(customerId)
         .populate('assignedTo', 'name email mobile department')
+        .populate('projectEngagements.invoices.templateId')
         .lean();
     if (!customer) throw new AppError('Customer not found', 404);
 
