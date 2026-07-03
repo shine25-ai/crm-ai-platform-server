@@ -45,11 +45,42 @@ const updateDepartmentCounts = async () => {
 /**
  * Get all employees with department and manager populated.
  */
-const getAllEmployees = async () => {
-    return await Employee.find({})
-        .populate('department', 'departmentName status')
-        .populate('manager', 'name designation employeeId')
-        .sort({ createdAt: -1 });
+const getAllEmployees = async (filters = {}) => {
+    const query = {};
+
+    if (filters.search) {
+        const regex = new RegExp(filters.search, 'i');
+        query.$or = [
+            { name: regex },
+            { email: regex },
+            { designation: regex },
+            { mobile: regex }
+        ];
+    }
+
+    if (filters.department) query.department = filters.department;
+    if (filters.status) query.status = filters.status;
+
+    const page = Math.max(1, parseInt(filters.page) || 1);
+    const limit = Math.max(1, parseInt(filters.limit) || 10);
+    const skip = (page - 1) * limit;
+
+    const [employees, total] = await Promise.all([
+        Employee.find(query)
+            .populate('department', 'departmentName status')
+            .populate('manager', 'name designation employeeId')
+            .sort({ createdAt: -1 })
+            .skip(skip)
+            .limit(limit),
+        Employee.countDocuments(query)
+    ]);
+
+    return {
+        employees,
+        total,
+        page,
+        totalPages: Math.ceil(total / limit)
+    };
 };
 
 /**

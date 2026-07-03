@@ -57,7 +57,13 @@ const permissionCatalog = [
     ['settings:read', 'Read Settings', 'Settings'],
     ['assets:read', 'Read Assets', 'Assets'],
     ['assets:write', 'Write Assets', 'Assets'],
-    ['assets:delete', 'Delete Assets', 'Assets']
+    ['assets:delete', 'Delete Assets', 'Assets'],
+    ['employees:export', 'Export Employees List', 'Employees'],
+    ['leads:export', 'Export Leads Pipeline', 'Leads'],
+    ['customers:merge', 'Merge Duplicate Customer Profiles', 'Customers'],
+    ['reports:export', 'Export Generated Analytics Reports', 'Reports'],
+    ['settings:manage', 'Manage General Application Settings', 'Settings'],
+    ['auditlogs:view', 'View Database Audit Logs Trail', 'Audit Logs']
 ];
 
 const rolePermissions = {
@@ -71,9 +77,13 @@ const rolePermissions = {
         'departments:write',
         'employees:read',
         'employees:write',
+        'employees:export',
         'leads:read',
         'leads:write',
+        'leads:export',
         'customers:read',
+        'customers:write',
+        'customers:merge',
         'sales:read',
         'sales:write',
         'communications:read',
@@ -95,6 +105,8 @@ const rolePermissions = {
         'calendar:write',
         'activity:read',
         'settings:read',
+        'settings:manage',
+        'auditlogs:view',
         'assets:read',
         'assets:write',
         'assets:delete'
@@ -105,6 +117,7 @@ const rolePermissions = {
         'departments:read',
         'employees:read',
         'employees:write',
+        'employees:export',
         'leads:read',
         'leads:write',
         'communications:read',
@@ -127,11 +140,153 @@ const rolePermissions = {
         'assets:read',
         'assets:write'
     ],
+    HR_MANAGER: [
+        'dashboard:view',
+        'users:read',
+        'departments:read',
+        'employees:read',
+        'employees:write',
+        'employees:export',
+        'leads:read',
+        'leads:write',
+        'communications:read',
+        'tasks:read',
+        'tasks:write',
+        'attendance:read',
+        'attendance:write',
+        'notifications:read',
+        'notifications:write',
+        'chat:read',
+        'chat:write',
+        'approvals:read',
+        'approvals:write',
+        'leave:read',
+        'leave:write',
+        'calendar:read',
+        'calendar:write',
+        'activity:read',
+        'settings:read',
+        'assets:read',
+        'assets:write'
+    ],
+    SALES_DIRECTOR: [
+        'dashboard:view',
+        'leads:read',
+        'leads:write',
+        'leads:assign',
+        'leads:convert',
+        'leads:export',
+        'customers:read',
+        'customers:write',
+        'customers:merge',
+        'sales:read',
+        'sales:write',
+        'communications:read',
+        'communications:write',
+        'notifications:read',
+        'notifications:write',
+        'chat:read',
+        'chat:write',
+        'reports:read',
+        'reports:export',
+        'settings:read'
+    ],
+    SALES_MANAGER: [
+        'dashboard:view',
+        'users:read',
+        'leads:read',
+        'leads:write',
+        'leads:assign',
+        'leads:convert',
+        'leads:export',
+        'customers:read',
+        'customers:write',
+        'communications:read',
+        'communications:write',
+        'notifications:read',
+        'chat:read',
+        'chat:write',
+        'settings:read',
+        'assets:read'
+    ],
+    SALES_EXECUTIVE: [
+        'dashboard:view',
+        'leads:read',
+        'leads:write',
+        'customers:read',
+        'communications:read',
+        'communications:write',
+        'notifications:read',
+        'chat:read',
+        'chat:write'
+    ],
+    BUSINESS_DEVELOPMENT_EXECUTIVE: [
+        'dashboard:view',
+        'leads:read',
+        'leads:write',
+        'notifications:read',
+        'chat:read',
+        'chat:write'
+    ],
+    CUSTOMER_SUPPORT_EXECUTIVE: [
+        'dashboard:view',
+        'customers:read',
+        'communications:read',
+        'communications:write',
+        'tasks:read',
+        'tasks:write',
+        'notifications:read',
+        'chat:read',
+        'chat:write'
+    ],
+    TEAM_MANAGER: [
+        'dashboard:view',
+        'employees:read',
+        'tasks:read',
+        'tasks:write',
+        'approvals:read',
+        'approvals:write',
+        'calendar:read',
+        'notifications:read',
+        'chat:read',
+        'chat:write'
+    ],
+    FINANCE_MANAGER: [
+        'dashboard:view',
+        'employees:read',
+        'sales:read',
+        'reports:read',
+        'approvals:read',
+        'approvals:write',
+        'notifications:read',
+        'chat:read',
+        'chat:write',
+        'settings:read'
+    ],
+    PROCUREMENT_ASSET_MANAGER: [
+        'dashboard:view',
+        'assets:read',
+        'assets:write',
+        'assets:delete',
+        'notifications:read',
+        'chat:read',
+        'chat:write',
+        'settings:read'
+    ],
+    PROJECT_MANAGER: [
+        'dashboard:view',
+        'tasks:read',
+        'tasks:write',
+        'tasks:delete',
+        'calendar:read',
+        'calendar:write',
+        'notifications:read',
+        'chat:read',
+        'chat:write'
+    ],
     EMPLOYEE: [
         'dashboard:view',
         'employees:read',
-        'leads:read',
-        'leads:write',
         'tasks:read',
         'tasks:write',
         'attendance:read',
@@ -146,32 +301,10 @@ const rolePermissions = {
         'settings:read',
         'assets:read'
     ],
-    SALES_MANAGER: [
+    CLIENT_PORTAL_USER: [
         'dashboard:view',
-        'users:read',
-        'leads:read',
-        'leads:write',
-        'leads:assign',
-        'leads:convert',
-        'customers:read',
-        'customers:write',
         'communications:read',
         'communications:write',
-        'notifications:read',
-        'notifications:write',
-        'chat:read',
-        'chat:write',
-        'settings:read',
-        'assets:read'
-    ],
-    SALES_EXECUTIVE: [
-        'dashboard:view',
-        'leads:read',
-        'leads:write',
-        'customers:read',
-        'communications:read',
-        'communications:write',
-        'notifications:read',
         'chat:read',
         'chat:write'
     ]
@@ -246,8 +379,13 @@ const seedPermissions = async () => {
         await syncRolePermissions('ADMIN', rolePermissions.ADMIN, seededPerms);
         await syncRolePermissions('HR', rolePermissions.HR, seededPerms);
         await syncRolePermissions(
-            'EMPLOYEE',
-            rolePermissions.EMPLOYEE,
+            'HR_MANAGER',
+            rolePermissions.HR_MANAGER,
+            seededPerms
+        );
+        await syncRolePermissions(
+            'SALES_DIRECTOR',
+            rolePermissions.SALES_DIRECTOR,
             seededPerms
         );
         await syncRolePermissions(
@@ -258,6 +396,46 @@ const seedPermissions = async () => {
         await syncRolePermissions(
             'SALES_EXECUTIVE',
             rolePermissions.SALES_EXECUTIVE,
+            seededPerms
+        );
+        await syncRolePermissions(
+            'BUSINESS_DEVELOPMENT_EXECUTIVE',
+            rolePermissions.BUSINESS_DEVELOPMENT_EXECUTIVE,
+            seededPerms
+        );
+        await syncRolePermissions(
+            'CUSTOMER_SUPPORT_EXECUTIVE',
+            rolePermissions.CUSTOMER_SUPPORT_EXECUTIVE,
+            seededPerms
+        );
+        await syncRolePermissions(
+            'TEAM_MANAGER',
+            rolePermissions.TEAM_MANAGER,
+            seededPerms
+        );
+        await syncRolePermissions(
+            'FINANCE_MANAGER',
+            rolePermissions.FINANCE_MANAGER,
+            seededPerms
+        );
+        await syncRolePermissions(
+            'PROCUREMENT_ASSET_MANAGER',
+            rolePermissions.PROCUREMENT_ASSET_MANAGER,
+            seededPerms
+        );
+        await syncRolePermissions(
+            'PROJECT_MANAGER',
+            rolePermissions.PROJECT_MANAGER,
+            seededPerms
+        );
+        await syncRolePermissions(
+            'EMPLOYEE',
+            rolePermissions.EMPLOYEE,
+            seededPerms
+        );
+        await syncRolePermissions(
+            'CLIENT_PORTAL_USER',
+            rolePermissions.CLIENT_PORTAL_USER,
             seededPerms
         );
     } catch (error) {

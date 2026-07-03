@@ -20,9 +20,40 @@ const mapUserRole = (user) => {
     return userObj;
 };
 
-const getAllUsers = async () => {
-    const users = await User.find({}).populate('roleId');
-    return users.map(mapUserRole);
+const getAllUsers = async (filters = {}) => {
+    const query = {};
+
+    if (filters.search) {
+        const regex = new RegExp(filters.search, 'i');
+        query.$or = [
+            { name: regex },
+            { email: regex },
+            { mobile: regex },
+            { department: regex }
+        ];
+    }
+
+    if (filters.status) query.status = normalizeStatus(filters.status);
+
+    const page = Math.max(1, parseInt(filters.page) || 1);
+    const limit = Math.max(1, parseInt(filters.limit) || 10);
+    const skip = (page - 1) * limit;
+
+    const [usersList, total] = await Promise.all([
+        User.find(query)
+            .populate('roleId')
+            .sort({ createdAt: -1 })
+            .skip(skip)
+            .limit(limit),
+        User.countDocuments(query)
+    ]);
+
+    return {
+        users: usersList.map(mapUserRole),
+        total,
+        page,
+        totalPages: Math.ceil(total / limit)
+    };
 };
 
 const getSalesMembers = async () => {

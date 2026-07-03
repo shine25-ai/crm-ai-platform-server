@@ -26,7 +26,21 @@ const getAssets = async (query = {}) => {
         filter.currentStatus = status;
     }
 
-    return Asset.find(filter).sort({ createdAt: -1 });
+    const page = Math.max(1, parseInt(query.page) || 1);
+    const limit = Math.max(1, parseInt(query.limit) || 10);
+    const skip = (page - 1) * limit;
+
+    const [assets, total] = await Promise.all([
+        Asset.find(filter).sort({ createdAt: -1 }).skip(skip).limit(limit),
+        Asset.countDocuments(filter)
+    ]);
+
+    return {
+        assets,
+        total,
+        page,
+        totalPages: Math.ceil(total / limit)
+    };
 };
 
 const getAssetById = async (id) => {
@@ -324,6 +338,43 @@ const notifyHrAndAdmins = async (title, message, referenceId) => {
     }
 };
 
+const reportAssetIssue = async (employeeId, assignmentId, data, user) => {
+    const assignment = await EmployeeAsset.findById(assignmentId);
+    if (!assignment)
+        throw new AppError('Asset assignment record not found', 404);
+    if (assignment.status !== 'Assigned') {
+        throw new AppError(
+            'Cannot report issue on an inactive asset assignment',
+            400
+        );
+    }
+
+    const remarks = data.remarks || 'Issue reported';
+    const issueType = data.issueType || 'Technical Problem';
+
+    const asset = await Asset.findById(assignment.assetId);
+    if (!asset) throw new AppError('Asset not found', 404);
+
+    await AssetAssignmentHistory.create({
+        assetId: assignment.assetId,
+        employeeId,
+        actionType: 'Issue Reported',
+        previousStatus: asset.currentStatus,
+        currentStatus: asset.currentStatus,
+        actionBy: user.userId,
+        remarks: `[${issueType}] ${remarks}`
+    });
+
+    const employee = await Employee.findById(employeeId);
+    await notifyHrAndAdmins(
+        `Asset Issue: ${issueType}`,
+        `Employee ${employee?.name || 'Staff'} reported an issue on ${asset.assetName} (${asset.assetTag}): "${remarks}"`,
+        asset._id
+    );
+
+    return assignment;
+};
+
 module.exports = {
     getAssets,
     getAssetById,
@@ -333,6 +384,7 @@ module.exports = {
     getEmployeeAssets,
     assignAsset,
     returnAsset,
+    reportAssetIssue,
     updateAssetAssignment,
     getEmployeeAssetHistory,
     getAssetHistory

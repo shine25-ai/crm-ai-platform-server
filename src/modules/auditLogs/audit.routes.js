@@ -27,15 +27,35 @@ router.use(authMiddleware);
  */
 router.get('/', async (req, res, next) => {
     try {
-        const logs = await AuditLog.find({})
-            .populate('userId', 'name email')
-            .sort({ createdAt: -1 })
-            .limit(200);
-        return ApiResponse.success(
-            res,
-            'Audit logs retrieved successfully',
-            logs
-        );
+        const query = {};
+        if (req.query.search) {
+            const regex = new RegExp(req.query.search, 'i');
+            query.$or = [
+                { module: regex },
+                { action: regex },
+                { ipAddress: regex }
+            ];
+        }
+
+        const page = Math.max(1, parseInt(req.query.page) || 1);
+        const limit = Math.max(1, parseInt(req.query.limit) || 10);
+        const skip = (page - 1) * limit;
+
+        const [logs, total] = await Promise.all([
+            AuditLog.find(query)
+                .populate('userId', 'name email')
+                .sort({ createdAt: -1 })
+                .skip(skip)
+                .limit(limit),
+            AuditLog.countDocuments(query)
+        ]);
+
+        return ApiResponse.success(res, 'Audit logs retrieved successfully', {
+            logs,
+            total,
+            page,
+            totalPages: Math.ceil(total / limit)
+        });
     } catch (error) {
         next(error);
     }
