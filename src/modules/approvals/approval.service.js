@@ -299,6 +299,11 @@ const getApprovalById = async (id, currentUser = {}) => {
         }
     }
 
+    if (approval.requestType === 'Expense Claim') {
+        const expenseService = require('../expenses/expense.service');
+        await expenseService.syncClaimFromApproval(approval);
+    }
+
     // Fetch related logs, comments, and attachments
     const [history, comments, attachments] = await Promise.all([
         ApprovalAction.find({ approvalRequestId: id })
@@ -572,7 +577,10 @@ const updateApproval = async (id, data, user) => {
                 {
                     referenceId: approval._id,
                     referenceType: 'Approval',
-                    actionUrl: '/approvals'
+                    actionUrl:
+                        approval.requestType === 'Expense Claim'
+                            ? '/employee/expenses'
+                            : '/approvals'
                 }
             );
         }
@@ -672,7 +680,10 @@ const updateApproval = async (id, data, user) => {
                 {
                     referenceId: approval._id,
                     referenceType: 'Approval',
-                    actionUrl: '/approvals'
+                    actionUrl:
+                        approval.requestType === 'Expense Claim'
+                            ? '/expenses'
+                            : '/approvals'
                 }
             );
         }
@@ -736,7 +747,10 @@ const updateApproval = async (id, data, user) => {
                     {
                         referenceId: approval._id,
                         referenceType: 'Approval',
-                        actionUrl: '/approvals'
+                        actionUrl:
+                            approval.requestType === 'Expense Claim'
+                                ? '/expenses'
+                                : '/approvals'
                     }
                 );
             }
@@ -758,7 +772,10 @@ const updateApproval = async (id, data, user) => {
                     {
                         referenceId: approval._id,
                         referenceType: 'Approval',
-                        actionUrl: '/approvals'
+                        actionUrl:
+                            approval.requestType === 'Expense Claim'
+                                ? '/employee/expenses'
+                                : '/approvals'
                     }
                 );
             }
@@ -811,6 +828,15 @@ const deleteAttachment = async (attachmentId, userId) => {
     const attachment = await ApprovalAttachment.findById(attachmentId);
     if (!attachment) {
         throw new AppError('Attachment not found', 404);
+    }
+    const approval = await Approval.findById(attachment.approvalRequestId)
+        .select('requestType')
+        .lean();
+    if (approval?.requestType === 'Expense Claim') {
+        throw new AppError(
+            'Expense receipts are locked after claim submission',
+            400
+        );
     }
     // Only allow deletion if user uploaded it
     if (String(attachment.uploadedBy) !== String(userId)) {

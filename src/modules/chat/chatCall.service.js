@@ -35,6 +35,22 @@ const startCall = async (callerId, payload = {}) => {
     });
     if (!receiver) throw new AppError('Call recipient not found', 404);
 
+    const activeCall = await ChatCall.findOne({
+        status: { $in: ['Ringing', 'Answered'] },
+        $or: [
+            { callerId },
+            { receiverId: callerId },
+            { callerId: payload.receiverId },
+            { receiverId: payload.receiverId }
+        ]
+    }).lean();
+    if (activeCall) {
+        throw new AppError(
+            'The caller or recipient is already in another call',
+            409
+        );
+    }
+
     const call = await ChatCall.create({
         callerId,
         receiverId: payload.receiverId,

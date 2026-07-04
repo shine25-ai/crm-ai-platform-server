@@ -21,6 +21,10 @@ const seedLeads = require('./seeders/leadSeeder.js');
 const seedCommunications = require('./seeders/communicationSeeder.js');
 const seedLeavePolicies = require('./seeders/leavePolicySeeder.js');
 const seedLeaveData = require('./seeders/leaveDataSeeder.js');
+const seedShifts = require('./seeders/shiftSeeder.js');
+const seedShiftAssignments = require('./seeders/shiftAssignmentSeeder.js');
+const seedProjectActivities = require('./seeders/projectActivitySeeder.js');
+const seedExpenseClaims = require('./seeders/expenseClaimSeeder.js');
 const {
     scheduleTaskDeadlineReminders
 } = require('./shared/services/taskDeadline.cron');
@@ -53,6 +57,10 @@ const startServer = async () => {
         await seedCommunications();
         await seedLeavePolicies();
         await seedLeaveData();
+        await seedShifts();
+        await seedShiftAssignments();
+        await seedProjectActivities();
+        await seedExpenseClaims();
 
         // await seedDepartmentsAndEmployees();
 

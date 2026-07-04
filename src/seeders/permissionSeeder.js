@@ -40,6 +40,12 @@ const permissionCatalog = [
     ['tasks:delete', 'Delete Tasks', 'Tasks'],
     ['attendance:read', 'Read Attendance', 'Attendance'],
     ['attendance:write', 'Write Attendance', 'Attendance'],
+    ['shifts:read', 'Read Shift Masters and Assignments', 'Shifts'],
+    ['shifts:write', 'Write Shift Masters and Assignments', 'Shifts'],
+    ['shifts:delete', 'Delete Shift Masters and Assignments', 'Shifts'],
+    ['expenses:read', 'Read Expense Claims', 'Expenses'],
+    ['expenses:write', 'Create and Manage Own Expense Claims', 'Expenses'],
+    ['expenses:review', 'Review Employee Expense Claims', 'Expenses'],
     ['notifications:read', 'Read Notifications', 'Notifications'],
     ['notifications:write', 'Write Notifications', 'Notifications'],
     ['chat:read', 'Read Chat', 'Chat'],
@@ -74,6 +80,7 @@ const rolePermissions = {
         'leads:read',
         'leads:write',
         'customers:read',
+        'customers:write',
         'sales:read',
         'sales:write',
         'communications:read',
@@ -83,6 +90,12 @@ const rolePermissions = {
         'tasks:write',
         'attendance:read',
         'attendance:write',
+        'shifts:read',
+        'shifts:write',
+        'shifts:delete',
+        'expenses:read',
+        'expenses:write',
+        'expenses:review',
         'notifications:read',
         'notifications:write',
         'chat:read',
@@ -112,6 +125,12 @@ const rolePermissions = {
         'tasks:write',
         'attendance:read',
         'attendance:write',
+        'shifts:read',
+        'shifts:write',
+        'shifts:delete',
+        'expenses:read',
+        'expenses:write',
+        'expenses:review',
         'notifications:read',
         'notifications:write',
         'chat:read',
@@ -136,6 +155,9 @@ const rolePermissions = {
         'tasks:write',
         'attendance:read',
         'attendance:write',
+        'shifts:read',
+        'expenses:read',
+        'expenses:write',
         'notifications:read',
         'chat:read',
         'chat:write',
@@ -162,7 +184,9 @@ const rolePermissions = {
         'chat:read',
         'chat:write',
         'settings:read',
-        'assets:read'
+        'assets:read',
+        'expenses:read',
+        'expenses:write'
     ],
     SALES_EXECUTIVE: [
         'dashboard:view',
@@ -173,7 +197,9 @@ const rolePermissions = {
         'communications:write',
         'notifications:read',
         'chat:read',
-        'chat:write'
+        'chat:write',
+        'expenses:read',
+        'expenses:write'
     ]
 };
 
