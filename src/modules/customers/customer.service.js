@@ -79,9 +79,27 @@ const listCustomers = async (filters = {}) => {
     if (filters.status) query.status = filters.status;
     if (filters.assignedTo) query.assignedTo = filters.assignedTo;
 
-    return populateCustomer(
-        Customer.find(query).sort({ createdAt: -1 }).lean()
-    );
+    const page = Math.max(1, parseInt(filters.page) || 1);
+    const limit = Math.max(1, parseInt(filters.limit) || 10);
+    const skip = (page - 1) * limit;
+
+    const [customers, total] = await Promise.all([
+        populateCustomer(
+            Customer.find(query)
+                .sort({ createdAt: -1 })
+                .skip(skip)
+                .limit(limit)
+                .lean()
+        ),
+        Customer.countDocuments(query)
+    ]);
+
+    return {
+        customers,
+        total,
+        page,
+        totalPages: Math.ceil(total / limit)
+    };
 };
 
 const getCustomerById = async (id) => {

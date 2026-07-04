@@ -3,7 +3,7 @@ const ApiResponse = require('../../shared/utils/response');
 
 const getUsers = async (req, res, next) => {
     try {
-        const users = await userService.getAllUsers();
+        const users = await userService.getAllUsers(req.query);
         return ApiResponse.success(res, 'Users retrieved successfully', users);
     } catch (error) {
         next(error);

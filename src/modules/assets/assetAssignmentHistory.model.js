@@ -21,7 +21,8 @@ const assetAssignmentHistorySchema = new mongoose.Schema({
             'Reassigned',
             'Lost',
             'Damaged',
-            'Under Repair'
+            'Under Repair',
+            'Issue Reported'
         ],
         required: true,
         index: true

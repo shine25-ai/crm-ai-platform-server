@@ -5,141 +5,104 @@ const roleDefinitions = [
         roleCode: 'SUPER_ADMIN',
         roleName: 'Super Admin',
         isSystemRole: true,
-        permissions: ['*']
+        description: 'Unrestricted developer configuration access'
     },
     {
         roleCode: 'ADMIN',
         roleName: 'Admin',
         isSystemRole: true,
-        permissions: [
-            'dashboard:view',
-            'permissions:read',
-            'users:read',
-            'users:write',
-            'roles:read',
-            'departments:read',
-            'departments:write',
-            'employees:read',
-            'employees:write',
-            'leads:read',
-            'leads:write',
-            'customers:read',
-            'sales:read',
-            'sales:write',
-            'communications:read',
-            'communications:write',
-            'campaigns:read',
-            'tasks:read',
-            'tasks:write',
-            'attendance:read',
-            'attendance:write',
-            'notifications:read',
-            'notifications:write',
-            'chat:read',
-            'chat:write',
-            'approvals:read',
-            'approvals:write',
-            'leave:read',
-            'leave:write',
-            'calendar:read',
-            'calendar:write',
-            'activity:read',
-            'settings:read'
-        ]
+        description:
+            'Administrator operational configuration and user management access'
     },
     {
         roleCode: 'HR',
         roleName: 'HR',
         isSystemRole: true,
         description:
-            'Human resources access for employees, onboarding, attendance, tasks, approvals, calendar, chat, and notifications',
-        permissions: [
-            'dashboard:view',
-            'users:read',
-            'departments:read',
-            'employees:read',
-            'employees:write',
-            'tasks:read',
-            'tasks:write',
-            'attendance:read',
-            'attendance:write',
-            'notifications:read',
-            'notifications:write',
-            'chat:read',
-            'chat:write',
-            'approvals:read',
-            'approvals:write',
-            'leave:read',
-            'leave:write',
-            'calendar:read',
-            'calendar:write',
-            'activity:read',
-            'settings:read'
-        ]
+            'Human Resources personnel management, payroll, leave, and assets allocation'
     },
     {
-        roleCode: 'EMPLOYEE',
-        roleName: 'Employee',
+        roleCode: 'HR_MANAGER',
+        roleName: 'HR Manager',
         isSystemRole: true,
-        description: 'Standard employee access to employee portal only',
-        permissions: [
-            'dashboard:view',
-            'employees:read',
-            'tasks:read',
-            'tasks:write',
-            'attendance:read',
-            'attendance:write',
-            'notifications:read',
-            'chat:read',
-            'chat:write',
-            'approvals:read',
-            'approvals:write',
-            'leave:read',
-            'calendar:read',
-            'settings:read'
-        ]
+        description:
+            'Human Resources department manager overseeing operations and approvals'
+    },
+    {
+        roleCode: 'SALES_DIRECTOR',
+        roleName: 'Sales Director',
+        isSystemRole: true,
+        description:
+            'Executive head of sales pipeline, commissions, and revenue operations'
     },
     {
         roleCode: 'SALES_MANAGER',
         roleName: 'Sales Manager',
         isSystemRole: true,
         description:
-            'Sales team manager with lead assignment and conversion access',
-        permissions: [
-            'dashboard:view',
-            'users:read',
-            'leads:read',
-            'leads:write',
-            'leads:assign',
-            'leads:convert',
-            'customers:read',
-            'customers:write',
-            'communications:read',
-            'communications:write',
-            'notifications:read',
-            'notifications:write',
-            'chat:read',
-            'chat:write',
-            'settings:read'
-        ]
+            'Lead assigner, team performance coordinator, and conversion supervisor'
     },
     {
         roleCode: 'SALES_EXECUTIVE',
         roleName: 'Sales Executive',
         isSystemRole: true,
         description:
-            'Sales representative to create, view and update assigned leads',
-        permissions: [
-            'dashboard:view',
-            'leads:read',
-            'leads:write',
-            'customers:read',
-            'communications:read',
-            'communications:write',
-            'notifications:read',
-            'chat:read',
-            'chat:write'
-        ]
+            'Client relationship representative managing assigned pipeline leads'
+    },
+    {
+        roleCode: 'BUSINESS_DEVELOPMENT_EXECUTIVE',
+        roleName: 'Business Development Executive',
+        isSystemRole: true,
+        description:
+            'Field marketing representative generating initial pipeline prospects'
+    },
+    {
+        roleCode: 'CUSTOMER_SUPPORT_EXECUTIVE',
+        roleName: 'Customer Support Executive',
+        isSystemRole: true,
+        description:
+            'Helpdesk support specialist managing client support tasks and correspondence'
+    },
+    {
+        roleCode: 'TEAM_MANAGER',
+        roleName: 'Team Manager',
+        isSystemRole: true,
+        description:
+            'Line manager overseeing operational tasks and team approvals'
+    },
+    {
+        roleCode: 'FINANCE_MANAGER',
+        roleName: 'Finance Manager',
+        isSystemRole: true,
+        description:
+            'Financial accountant managing payroll totals, invoices, and sales audits'
+    },
+    {
+        roleCode: 'PROCUREMENT_ASSET_MANAGER',
+        roleName: 'Procurement & Asset Manager',
+        isSystemRole: true,
+        description:
+            'Logistics coordinator managing hardware purchases, inventory, and lifecycle'
+    },
+    {
+        roleCode: 'PROJECT_MANAGER',
+        roleName: 'Project Manager',
+        isSystemRole: true,
+        description:
+            'Workplace planner overseeing milestone deliverables, assignments, and tasks'
+    },
+    {
+        roleCode: 'EMPLOYEE',
+        roleName: 'Employee',
+        isSystemRole: true,
+        description: 'Standard organization worker with employee portal access'
+    },
+    {
+        roleCode: 'CLIENT_PORTAL_USER',
+        roleName: 'Client Portal User',
+        isSystemRole: true,
+        description:
+            'External customer portal representative tracking tickets and chat updates'
     }
 ];
 

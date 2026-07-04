@@ -228,6 +228,11 @@ router.post(
     authorize('assets:write'),
     assetController.returnAsset
 );
+router.post(
+    '/:employeeId/assets/:assignmentId/report-issue',
+    authorize('employees:read'),
+    assetController.reportAssetIssue
+);
 router.get(
     '/:employeeId/assets/history',
     authorize('employees:read', 'assets:read'),

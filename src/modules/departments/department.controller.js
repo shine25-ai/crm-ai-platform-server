@@ -3,7 +3,9 @@ const ApiResponse = require('../../shared/utils/response');
 
 const getDepartments = async (req, res, next) => {
     try {
-        const departments = await departmentService.getAllDepartments();
+        const departments = await departmentService.getAllDepartments(
+            req.query
+        );
         return ApiResponse.success(
             res,
             'Departments retrieved successfully',

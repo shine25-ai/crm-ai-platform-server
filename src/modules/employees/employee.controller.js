@@ -3,7 +3,7 @@ const ApiResponse = require('../../shared/utils/response');
 
 const getEmployees = async (req, res, next) => {
     try {
-        const employees = await employeeService.getAllEmployees();
+        const employees = await employeeService.getAllEmployees(req.query);
         return ApiResponse.success(
             res,
             'Employees retrieved successfully',
