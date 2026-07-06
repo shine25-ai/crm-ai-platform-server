@@ -65,6 +65,18 @@ const SAMPLE_CLAIMS = [
         projectReference: 'Enterprise Renewal',
         amount: 4800,
         expenseDate: daysAgo(18)
+    },
+    {
+        claimNumber: 'EXP-DEMO-APPROVAL-001',
+        employeeEmail: 'aarav.nair@optiflow.test',
+        status: 'Submitted',
+        category: 'Travel',
+        merchant: 'Metro Cab Services',
+        description: 'Airport transfer for customer workshop',
+        businessPurpose: 'Travel to the customer implementation workshop',
+        projectReference: 'Expense Approval Demo',
+        amount: 1850,
+        expenseDate: daysAgo(3)
     }
 ];
 
@@ -83,9 +95,12 @@ const findApprovers = async (employee) => {
     const fallbackUsers = [...hrUsers, ...adminUsers];
 
     let stageOne = null;
+    let managerEmployee = null;
     if (employee.manager) {
-        const manager = await Employee.findById(employee.manager);
-        if (manager?.userId) stageOne = await User.findById(manager.userId);
+        managerEmployee = await Employee.findById(employee.manager);
+        if (managerEmployee?.userId) {
+            stageOne = await User.findById(managerEmployee.userId);
+        }
     }
     stageOne =
         stageOne ||
@@ -94,7 +109,26 @@ const findApprovers = async (employee) => {
         ) ||
         (await User.findById(employee.userId));
 
+    let hierarchyHr = null;
+    if (managerEmployee?.manager) {
+        const hierarchyHrEmployee = await Employee.findById(
+            managerEmployee.manager
+        );
+        if (hierarchyHrEmployee?.userId) {
+            hierarchyHr = await User.findById(
+                hierarchyHrEmployee.userId
+            ).populate('roleId', 'roleCode');
+            if (
+                !['HR', 'HR_MANAGER'].includes(hierarchyHr?.roleId?.roleCode) ||
+                hierarchyHr.status !== 'Active'
+            ) {
+                hierarchyHr = null;
+            }
+        }
+    }
+
     const stageTwo =
+        hierarchyHr ||
         hrUsers.find(
             (user) =>
                 String(user._id) !== String(stageOne?._id) &&
@@ -295,17 +329,45 @@ const seedExpenseClaims = async () => {
 
         let createdCount = 0;
         for (const [index, sample] of SAMPLE_CLAIMS.entries()) {
-            if (
-                await ExpenseClaim.exists({ claimNumber: sample.claimNumber })
-            ) {
-                continue;
-            }
-            const employee = employees[index % employees.length];
+            const employee =
+                employees.find((item) => item.email === sample.employeeEmail) ||
+                employees[index % employees.length];
             const { stageOne, stageTwo } = await findApprovers(employee);
             if (!stageOne || !stageTwo) continue;
 
+            const existingClaim = await ExpenseClaim.findOne({
+                claimNumber: sample.claimNumber
+            });
+            if (existingClaim) {
+                if (sample.employeeEmail && existingClaim.approvalId) {
+                    const approval = await Approval.findById(
+                        existingClaim.approvalId
+                    );
+                    const stageOneApproval = approval?.stageApprovals?.find(
+                        (stage) => stage.stageNumber === 1
+                    );
+                    const stageTwoApproval = approval?.stageApprovals?.find(
+                        (stage) => stage.stageNumber === 2
+                    );
+                    if (stageOneApproval?.status === 'Pending') {
+                        stageOneApproval.approverId = stageOne._id;
+                    }
+                    if (stageTwoApproval?.status === 'Pending') {
+                        stageTwoApproval.approverId = stageTwo._id;
+                    }
+                    if (approval?.currentStageNumber === 1) {
+                        approval.currentApproverId = stageOne._id;
+                    } else if (approval?.currentStageNumber === 2) {
+                        approval.currentApproverId = stageTwo._id;
+                    }
+                    await approval?.save();
+                }
+                continue;
+            }
+
+            const { employeeEmail, ...claimData } = sample;
             const claim = await ExpenseClaim.create({
-                ...sample,
+                ...claimData,
                 employeeId: employee._id,
                 submittedBy: employee.userId,
                 currency: 'INR',

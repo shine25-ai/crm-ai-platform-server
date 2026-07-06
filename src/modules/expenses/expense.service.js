@@ -13,7 +13,14 @@ const {
     logAudit
 } = require('../../shared/services/audit.service');
 
-const REVIEW_ROLES = ['SUPER_ADMIN', 'ADMIN', 'HR'];
+const MANAGER_ROLES = ['MANAGER', 'TEAM_MANAGER'];
+const REVIEW_ROLES = [
+    'SUPER_ADMIN',
+    'ADMIN',
+    'HR',
+    'HR_MANAGER',
+    ...MANAGER_ROLES
+];
 const EDITABLE_FIELDS = [
     'expenseDate',
     'category',
@@ -292,7 +299,16 @@ const submitClaim = async (id, user) => {
 const buildClaimQuery = async (filters, user) => {
     const role = String(user.roleCode || '').toUpperCase();
     const query = {};
-    if (filters.own || !REVIEW_ROLES.includes(role)) {
+    if (filters.own) {
+        const employee = await resolveEmployee(user);
+        query.employeeId = employee._id;
+    } else if (MANAGER_ROLES.includes(role)) {
+        const manager = await resolveEmployee(user);
+        const teamEmployeeIds = await Employee.find({
+            manager: manager._id
+        }).distinct('_id');
+        query.employeeId = { $in: teamEmployeeIds };
+    } else if (!REVIEW_ROLES.includes(role)) {
         const employee = await resolveEmployee(user);
         query.employeeId = employee._id;
     } else if (filters.employeeId) {
@@ -311,7 +327,10 @@ const buildClaimQuery = async (filters, user) => {
 const listClaims = async (filters = {}, user) => {
     const query = await buildClaimQuery(filters, user);
     const claims = await ExpenseClaim.find(query)
-        .populate('employeeId', 'employeeId name email designation department')
+        .populate(
+            'employeeId',
+            'employeeId name email designation department manager'
+        )
         .populate('submittedBy', 'name email')
         .populate('reviewedBy', 'name email')
         .populate(
@@ -339,7 +358,10 @@ const listClaims = async (filters = {}, user) => {
 
 const getClaimById = async (id, user) => {
     const claim = await ExpenseClaim.findById(id)
-        .populate('employeeId', 'employeeId name email designation department')
+        .populate(
+            'employeeId',
+            'employeeId name email designation department manager'
+        )
         .populate('submittedBy', 'name email')
         .populate('reviewedBy', 'name email')
         .populate({
@@ -353,7 +375,24 @@ const getClaimById = async (id, user) => {
         .lean();
     if (!claim) throw new AppError('Expense claim not found', 404);
     const role = String(user.roleCode || '').toUpperCase();
-    if (!REVIEW_ROLES.includes(role)) {
+    if (MANAGER_ROLES.includes(role)) {
+        const manager = await resolveEmployee(user);
+        const isTeamClaim =
+            claim.employeeId.manager &&
+            String(claim.employeeId.manager) === String(manager._id);
+        const currentApproverId =
+            claim.approvalId?.currentApproverId?._id ||
+            claim.approvalId?.currentApproverId;
+        const isCurrentApprover =
+            currentApproverId &&
+            String(currentApproverId) === String(user.userId);
+        if (!isTeamClaim && !isCurrentApprover) {
+            throw new AppError(
+                'You cannot access an expense claim outside your team',
+                403
+            );
+        }
+    } else if (!REVIEW_ROLES.includes(role)) {
         const employee = await resolveEmployee(user);
         if (String(claim.employeeId._id) !== String(employee._id)) {
             throw new AppError(
@@ -374,7 +413,10 @@ const getClaimById = async (id, user) => {
 const reviewClaim = async (id, payload, user) => {
     const role = String(user.roleCode || '').toUpperCase();
     if (!REVIEW_ROLES.includes(role)) {
-        throw new AppError('Only HR or administrators can review claims', 403);
+        throw new AppError(
+            'Only the assigned manager, HR, or an administrator can review claims',
+            403
+        );
     }
     if (!['Approve', 'Reject'].includes(payload.action)) {
         throw new AppError('Review action must be Approve or Reject', 400);

@@ -118,7 +118,9 @@ const roleSeeder = async () => {
 
         exists.roleName = role.roleName;
         exists.isSystemRole = role.isSystemRole;
-        exists.permissions = role.permissions;
+        if (Array.isArray(role.permissions)) {
+            exists.permissions = role.permissions;
+        }
         exists.status = exists.status === 'Inactive' ? 'Inactive' : 'Active';
         exists.description = role.description || exists.description;
         await exists.save();
