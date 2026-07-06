@@ -57,4 +57,26 @@ const deleteEvent = async (id, user) => {
     return true;
 };
 
-module.exports = { listEvents, createEvent, updateEvent, deleteEvent };
+const bulkCreateHolidays = async (eventsList, user) => {
+    const records = eventsList.map((item) => ({
+        ...item,
+        eventType: 'Holiday',
+        createdBy: user.userId
+    }));
+    const created = await Event.insertMany(records);
+    await logActivity(
+        user.userId,
+        'CREATE',
+        'Calendar',
+        `Bulk uploaded ${created.length} holidays via CSV`
+    );
+    return created;
+};
+
+module.exports = {
+    listEvents,
+    createEvent,
+    updateEvent,
+    deleteEvent,
+    bulkCreateHolidays
+};
