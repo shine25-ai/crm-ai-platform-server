@@ -33,8 +33,8 @@ const defaultWorkflows = [
             },
             {
                 stageNumber: 2,
-                stageName: 'Finance Audit',
-                approverRole: 'ADMIN',
+                stageName: 'HR Expense Review',
+                approverRole: 'HR',
                 slaDays: 4
             }
         ]
@@ -166,6 +166,18 @@ const seedWorkflows = async () => {
                 await Workflow.create(wf);
                 console.log(
                     `[Seeder] Seeded approval workflow: ${wf.workflowName}`
+                );
+            } else if (
+                wf.requestType === 'Expense Claim' &&
+                exists.workflowName === 'Expense Claim Verification' &&
+                exists.stages?.[1]?.stageName === 'Finance Audit' &&
+                exists.stages?.[1]?.approverRole === 'ADMIN'
+            ) {
+                exists.stages = wf.stages;
+                exists.isActive = true;
+                await exists.save();
+                console.log(
+                    '[Seeder] Synchronized expense claim approval workflow'
                 );
             }
         }

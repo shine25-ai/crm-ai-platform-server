@@ -31,6 +31,9 @@ const communicationRoutes = require('./modules/communications/communication.rout
 const noteRoutes = require('./modules/notes/note.routes');
 const leaveRoutes = require('./modules/leave/leave.routes');
 const assetRoutes = require('./modules/assets/asset.routes');
+const shiftRoutes = require('./modules/shifts/shift.routes');
+const projectActivityRoutes = require('./modules/projects/projectActivity.routes');
+const expenseRoutes = require('./modules/expenses/expense.routes');
 const reportRoutes = require('./modules/reports/report.routes');
 
 const app = express();
@@ -73,6 +76,9 @@ app.use('/api/leads', leadRoutes);
 app.use('/api/communications', communicationRoutes);
 app.use('/api/leave', leaveRoutes);
 app.use('/api/assets', assetRoutes);
+app.use('/api/shifts', shiftRoutes);
+app.use('/api/project-activities', projectActivityRoutes);
+app.use('/api/expenses', expenseRoutes);
 app.use('/api/reports', reportRoutes);
 
 app.use('/api/chat', chatRoutes);

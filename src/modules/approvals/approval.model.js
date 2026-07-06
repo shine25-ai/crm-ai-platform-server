@@ -127,7 +127,6 @@ const approvalSchema = new mongoose.Schema(
 
 approvalSchema.index({ employeeId: 1, status: 1, createdAt: -1 });
 approvalSchema.index({ currentApproverId: 1, status: 1 });
-approvalSchema.index({ requestNumber: 1 });
 approvalSchema.index({ 'stageApprovals.approverId': 1, status: 1 });
 
 module.exports = mongoose.model('Approval', approvalSchema);

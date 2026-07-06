@@ -101,6 +101,28 @@ const chatUpload = multer({
     limits: { fileSize: 20 * 1024 * 1024 } // 20 MB size limit
 });
 
+const expenseExtensions = ['.pdf', '.jpg', '.jpeg', '.png'];
+const expenseFileFilter = (req, file, cb) => {
+    const ext = path.extname(file.originalname).toLowerCase();
+    if (expenseExtensions.includes(ext)) {
+        cb(null, true);
+    } else {
+        cb(
+            new Error(
+                `Expense receipts must be: ${expenseExtensions.join(', ')}`
+            ),
+            false
+        );
+    }
+};
+
+const expenseUpload = multer({
+    storage: multer.memoryStorage(),
+    fileFilter: expenseFileFilter,
+    limits: { fileSize: 10 * 1024 * 1024, files: 5 }
+});
+
 module.exports = upload;
 module.exports.taskUpload = taskUpload;
 module.exports.chatUpload = chatUpload;
+module.exports.expenseUpload = expenseUpload;

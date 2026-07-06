@@ -18,13 +18,17 @@ const {
 } = require('./approval.validation');
 const leaveService = require('../leave/leave.service');
 
+const MANAGER_ROLES = ['MANAGER', 'TEAM_MANAGER'];
+
 // Fallback search to find a HR user if manager/deptHead is not found or has no userId
 const findFallbackHRUser = async (excludedUserIds = []) => {
     try {
-        const hrRole = await Role.findOne({ roleCode: 'HR' });
-        if (hrRole) {
+        const hrRoles = await Role.find({
+            roleCode: { $in: ['HR', 'HR_MANAGER'] }
+        });
+        if (hrRoles.length > 0) {
             const hrUser = await User.findOne({
-                roleId: hrRole._id,
+                roleId: { $in: hrRoles.map((role) => role._id) },
                 status: 'Active',
                 _id: { $nin: excludedUserIds }
             });
@@ -96,10 +100,33 @@ const findApproverForStage = async (stage, requesterEmployeeId) => {
     }
 
     if (stage.approverRole === 'HR') {
-        const hrRole = await Role.findOne({ roleCode: 'HR' });
-        if (hrRole) {
+        if (requester.manager) {
+            const managerEmployee = await Employee.findById(requester.manager);
+            if (managerEmployee?.manager) {
+                const hierarchyHrEmployee = await Employee.findById(
+                    managerEmployee.manager
+                );
+                if (hierarchyHrEmployee?.userId) {
+                    const hierarchyHrUser = await User.findById(
+                        hierarchyHrEmployee.userId
+                    ).populate('roleId', 'roleCode');
+                    if (
+                        ['HR', 'HR_MANAGER'].includes(
+                            hierarchyHrUser?.roleId?.roleCode
+                        ) &&
+                        hierarchyHrUser.status === 'Active'
+                    ) {
+                        return hierarchyHrUser._id;
+                    }
+                }
+            }
+        }
+        const hrRoles = await Role.find({
+            roleCode: { $in: ['HR', 'HR_MANAGER'] }
+        });
+        if (hrRoles.length > 0) {
             const hrUser = await User.findOne({
-                roleId: hrRole._id,
+                roleId: { $in: hrRoles.map((role) => role._id) },
                 status: 'Active'
             });
             if (hrUser) return hrUser._id;
@@ -188,7 +215,7 @@ const listApprovals = async (filters = {}, currentUser = {}) => {
         // Manager / HR Reviewer queue: items pending current user review
         query.currentApproverId = currentUser.userId;
         query.status = { $in: ['Pending Approval', 'Escalated'] };
-    } else if (currentUser.roleCode === 'MANAGER') {
+    } else if (MANAGER_ROLES.includes(currentUser.roleCode)) {
         // Managers can view own requests or requests submitted by their reporting team members
         const teamEmployees = await Employee.find({
             manager: currentUser.employeeId
@@ -282,7 +309,7 @@ const getApprovalById = async (id, currentUser = {}) => {
     }
 
     // Managers check: Can view their own, requests reporting to them, or if they are the current active approver
-    if (currentUser.roleCode === 'MANAGER') {
+    if (MANAGER_ROLES.includes(currentUser.roleCode)) {
         const isOwn =
             String(approval.employeeId._id) === String(currentUser.employeeId);
         const isManagerOfRequester =
@@ -297,6 +324,11 @@ const getApprovalById = async (id, currentUser = {}) => {
         if (!isOwn && !isManagerOfRequester && !isCurrentApprover) {
             throw new AppError('Forbidden: Access is denied.', 403);
         }
+    }
+
+    if (approval.requestType === 'Expense Claim') {
+        const expenseService = require('../expenses/expense.service');
+        await expenseService.syncClaimFromApproval(approval);
     }
 
     // Fetch related logs, comments, and attachments
@@ -572,7 +604,10 @@ const updateApproval = async (id, data, user) => {
                 {
                     referenceId: approval._id,
                     referenceType: 'Approval',
-                    actionUrl: '/approvals'
+                    actionUrl:
+                        approval.requestType === 'Expense Claim'
+                            ? '/employee/expenses'
+                            : '/approvals'
                 }
             );
         }
@@ -672,7 +707,10 @@ const updateApproval = async (id, data, user) => {
                 {
                     referenceId: approval._id,
                     referenceType: 'Approval',
-                    actionUrl: '/approvals'
+                    actionUrl:
+                        approval.requestType === 'Expense Claim'
+                            ? '/expenses'
+                            : '/approvals'
                 }
             );
         }
@@ -736,7 +774,10 @@ const updateApproval = async (id, data, user) => {
                     {
                         referenceId: approval._id,
                         referenceType: 'Approval',
-                        actionUrl: '/approvals'
+                        actionUrl:
+                            approval.requestType === 'Expense Claim'
+                                ? '/expenses'
+                                : '/approvals'
                     }
                 );
             }
@@ -758,7 +799,10 @@ const updateApproval = async (id, data, user) => {
                     {
                         referenceId: approval._id,
                         referenceType: 'Approval',
-                        actionUrl: '/approvals'
+                        actionUrl:
+                            approval.requestType === 'Expense Claim'
+                                ? '/employee/expenses'
+                                : '/approvals'
                     }
                 );
             }
@@ -811,6 +855,15 @@ const deleteAttachment = async (attachmentId, userId) => {
     const attachment = await ApprovalAttachment.findById(attachmentId);
     if (!attachment) {
         throw new AppError('Attachment not found', 404);
+    }
+    const approval = await Approval.findById(attachment.approvalRequestId)
+        .select('requestType')
+        .lean();
+    if (approval?.requestType === 'Expense Claim') {
+        throw new AppError(
+            'Expense receipts are locked after claim submission',
+            400
+        );
     }
     // Only allow deletion if user uploaded it
     if (String(attachment.uploadedBy) !== String(userId)) {

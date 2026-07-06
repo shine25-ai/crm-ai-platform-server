@@ -3,6 +3,7 @@ const router = express.Router();
 const customerController = require('./customer.controller');
 const authMiddleware = require('../../shared/middleware/auth.middleware');
 const upload = require('../../shared/middleware/upload.middleware');
+const authorize = require('../../shared/middleware/permission.middleware');
 
 router.use(authMiddleware);
 
@@ -33,6 +34,16 @@ router.post('/:id/meetings', customerController.addMeeting);
 router.post('/:id/transactions', customerController.addTransaction);
 router.post('/:id/opportunities', customerController.addOpportunity);
 router.post('/:id/projects', customerController.addProjectEngagement);
+router.put(
+    '/:id/projects/:engagementId',
+    authorize('customers:write'),
+    customerController.updateProjectEngagement
+);
+router.get(
+    '/:id/projects/:engagementId/activities',
+    authorize('customers:read'),
+    customerController.getProjectActivities
+);
 router.post(
     '/:id/projects/:engagementId/generate-invoices',
     customerController.generateInvoices
