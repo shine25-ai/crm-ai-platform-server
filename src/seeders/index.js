@@ -13,6 +13,7 @@ const seedLeavePolicies = require('./leavePolicySeeder');
 const seedLeaveData = require('./leaveDataSeeder');
 const seedAssets = require('./assetSeeder');
 const seedExpenseClaims = require('./expenseClaimSeeder');
+const seedGpsTracking = require('./gpsTrackingSeeder');
 
 const runSeeders = async () => {
     try {
@@ -34,6 +35,7 @@ const runSeeders = async () => {
         await seedLeaveData();
         await seedExpenseClaims();
         await seedAssets();
+        await seedGpsTracking();
 
         console.log('🎉 Database seeding complete!');
         process.exit(0);

@@ -35,6 +35,7 @@ const shiftRoutes = require('./modules/shifts/shift.routes');
 const projectActivityRoutes = require('./modules/projects/projectActivity.routes');
 const expenseRoutes = require('./modules/expenses/expense.routes');
 const reportRoutes = require('./modules/reports/report.routes');
+const gpsTrackingRoutes = require('./modules/gpsTracking/gpsTracking.routes');
 
 const app = express();
 
@@ -80,6 +81,7 @@ app.use('/api/shifts', shiftRoutes);
 app.use('/api/project-activities', projectActivityRoutes);
 app.use('/api/expenses', expenseRoutes);
 app.use('/api/reports', reportRoutes);
+app.use('/api/gps-tracking', gpsTrackingRoutes);
 
 app.use('/api/chat', chatRoutes);
 

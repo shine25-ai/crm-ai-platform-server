@@ -41,6 +41,9 @@ const authController = require('./auth.controller');
  */
 router.post('/login', authController.login);
 
+router.get('/oauth/:provider/start', authController.startOAuthLogin);
+router.get('/oauth/:provider/callback', authController.completeOAuthLogin);
+
 /**
  * @swagger
  * /api/auth/refresh-token:
