@@ -3,6 +3,7 @@ const AppError = require('../../shared/utils/appError');
 const { logActivity } = require('../../shared/services/audit.service');
 const shiftService = require('../shifts/shift.service');
 const { calculateTimesheet } = require('../shifts/shiftTime.utils');
+const gpsTrackingService = require('../gpsTracking/gpsTracking.service');
 
 const toDateTime = (shiftDate, timeValue) => {
     if (!timeValue) return new Date();
@@ -78,7 +79,7 @@ const distanceInMeters = (from, to) => {
     return earthRadius * c;
 };
 
-const validateLocation = (location = {}) => {
+const validateLocation = async (location = {}, employeeId = null) => {
     const latitude = Number(location.latitude);
     const longitude = Number(location.longitude);
 
@@ -88,6 +89,14 @@ const validateLocation = (location = {}) => {
             validated: false,
             validationMessage: 'Latitude and longitude are required'
         };
+    }
+
+    const geofenceValidation = await gpsTrackingService.validateAgainstGeofence(
+        employeeId,
+        { ...location, latitude, longitude }
+    );
+    if (geofenceValidation.geofenceId || geofenceValidation.geofenceName) {
+        return geofenceValidation;
     }
 
     const officeLatitude = Number(process.env.ATTENDANCE_OFFICE_LATITUDE);
@@ -190,11 +199,24 @@ const checkIn = async (
         });
     }
 
+    const validatedLocation = await validateLocation(location, employeeId);
+    const gpsSettings = await gpsTrackingService.getSettings();
+    if (
+        gpsSettings.enforceAttendanceGeofence &&
+        validatedLocation.validated === false
+    ) {
+        throw new AppError(
+            validatedLocation.validationMessage ||
+                'Attendance check-in is outside the allowed geofence',
+            400
+        );
+    }
+
     const record = await Attendance.create({
         employeeId,
         shiftDate: attendanceShiftDate,
         checkIn,
-        location: validateLocation(location),
+        location: validatedLocation,
         attendanceStatus: shiftFields.lateMinutes > 0 ? 'Late' : 'Present',
         ...shiftFields
     });

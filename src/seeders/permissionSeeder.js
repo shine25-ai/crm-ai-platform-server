@@ -59,6 +59,7 @@ const permissionCatalog = [
     ['calendar:delete', 'Delete Calendar', 'Calendar'],
     ['activity:read', 'Read Activity Logs', 'Activity'],
     ['gps:read', 'Read GPS Tracking', 'GPS Tracking'],
+    ['gps:write', 'Manage GPS Tracking', 'GPS Tracking'],
     ['reports:read', 'Read Reports', 'Reports'],
     ['settings:read', 'Read Settings', 'Settings'],
     ['assets:read', 'Read Assets', 'Assets'],
@@ -120,6 +121,8 @@ const rolePermissions = {
         'settings:read',
         'settings:manage',
         'auditlogs:view',
+        'gps:read',
+        'gps:write',
         'assets:read',
         'assets:write',
         'assets:delete'
@@ -156,6 +159,8 @@ const rolePermissions = {
         'calendar:write',
         'activity:read',
         'settings:read',
+        'gps:read',
+        'gps:write',
         'assets:read',
         'assets:write'
     ],
@@ -189,6 +194,8 @@ const rolePermissions = {
         'calendar:write',
         'activity:read',
         'settings:read',
+        'gps:read',
+        'gps:write',
         'assets:read',
         'assets:write'
     ],
@@ -210,6 +217,8 @@ const rolePermissions = {
         'notifications:write',
         'chat:read',
         'chat:write',
+        'gps:read',
+        'gps:write',
         'reports:read',
         'reports:export',
         'settings:read'
@@ -231,6 +240,8 @@ const rolePermissions = {
         'chat:write',
         'settings:read',
         'assets:read',
+        'gps:read',
+        'gps:write',
         'expenses:read',
         'expenses:write'
     ],
@@ -244,6 +255,8 @@ const rolePermissions = {
         'notifications:read',
         'chat:read',
         'chat:write',
+        'gps:read',
+        'gps:write',
         'expenses:read',
         'expenses:write'
     ],
@@ -253,7 +266,9 @@ const rolePermissions = {
         'leads:write',
         'notifications:read',
         'chat:read',
-        'chat:write'
+        'chat:write',
+        'gps:read',
+        'gps:write'
     ],
     CUSTOMER_SUPPORT_EXECUTIVE: [
         'dashboard:view',
@@ -278,7 +293,9 @@ const rolePermissions = {
         'calendar:read',
         'notifications:read',
         'chat:read',
-        'chat:write'
+        'chat:write',
+        'gps:read',
+        'gps:write'
     ],
     FINANCE_MANAGER: [
         'dashboard:view',
@@ -311,7 +328,9 @@ const rolePermissions = {
         'calendar:write',
         'notifications:read',
         'chat:read',
-        'chat:write'
+        'chat:write',
+        'gps:read',
+        'gps:write'
     ],
     EMPLOYEE: [
         'dashboard:view',
@@ -332,6 +351,8 @@ const rolePermissions = {
         'leave:read',
         'calendar:read',
         'settings:read',
+        'gps:read',
+        'gps:write',
         'assets:read'
     ],
     CLIENT_PORTAL_USER: [
