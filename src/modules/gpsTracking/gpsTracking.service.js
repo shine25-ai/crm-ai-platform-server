@@ -77,6 +77,8 @@ const listDashboard = async (query = {}) => {
     const [locations, geofences, visits, settings] = await Promise.all([
         latestLocations(query),
         GPSGeofence.find({ status: 'Active' })
+            .populate('assignedEmployees', 'name employeeId designation')
+            .populate('assignedDepartment', 'departmentName')
             .sort({ createdAt: -1 })
             .limit(20),
         GPSVisit.find({})
@@ -213,17 +215,25 @@ const validateAgainstGeofence = async (employeeId, location = {}) => {
     };
 };
 
-const createGeofence = (payload = {}, user = {}) =>
-    GPSGeofence.create({
+const normalizeObjectIdArray = (values = []) =>
+    Array.isArray(values) ? values.filter(Boolean) : [];
+
+const createGeofence = async (payload = {}, user = {}) => {
+    const geofence = await GPSGeofence.create({
         name: payload.name,
         type: payload.type || 'Custom',
         location: normalizeLocation(payload.location || payload),
         radiusMeters: toNumber(payload.radiusMeters, 250),
-        assignedEmployees: payload.assignedEmployees || [],
+        assignedEmployees: normalizeObjectIdArray(payload.assignedEmployees),
         assignedDepartment: payload.assignedDepartment || null,
         status: payload.status || 'Active',
         createdBy: user.userId || null
     });
+
+    return GPSGeofence.findById(geofence._id)
+        .populate('assignedEmployees', 'name employeeId designation')
+        .populate('assignedDepartment', 'departmentName');
+};
 
 const listGeofences = () =>
     GPSGeofence.find({})
@@ -236,12 +246,139 @@ const updateGeofence = (id, payload = {}) =>
         id,
         {
             ...payload,
+            ...(payload.radiusMeters !== undefined
+                ? { radiusMeters: toNumber(payload.radiusMeters, 250) }
+                : {}),
+            ...(payload.assignedEmployees !== undefined
+                ? {
+                      assignedEmployees: normalizeObjectIdArray(
+                          payload.assignedEmployees
+                      )
+                  }
+                : {}),
+            ...(payload.assignedDepartment !== undefined
+                ? { assignedDepartment: payload.assignedDepartment || null }
+                : {}),
             ...(payload.location
                 ? { location: normalizeLocation(payload.location) }
                 : {})
         },
         { new: true }
+    )
+        .populate('assignedEmployees', 'name employeeId designation')
+        .populate('assignedDepartment', 'departmentName');
+
+const resolveWorkspaceEmployees = async (geofence, allEmployees) => {
+    if (geofence.assignedEmployees?.length) return geofence.assignedEmployees;
+
+    if (geofence.assignedDepartment?._id) {
+        return allEmployees.filter(
+            (employee) =>
+                String(employee.department?._id || employee.department) ===
+                String(geofence.assignedDepartment._id)
+        );
+    }
+
+    return allEmployees;
+};
+
+const listWorkspaceVerification = async () => {
+    const [geofences, locations, allEmployees] = await Promise.all([
+        GPSGeofence.find({ status: 'Active' })
+            .populate(
+                'assignedEmployees',
+                'name employeeId designation department'
+            )
+            .populate('assignedDepartment', 'departmentName')
+            .sort({ createdAt: -1 }),
+        latestLocations(),
+        Employee.find({ status: 'Active' })
+            .select('name employeeId designation department')
+            .populate('department', 'departmentName')
+            .sort({ name: 1 })
+    ]);
+
+    const latestByEmployee = new Map(
+        locations.map((item) => [String(item.employeeId?._id), item])
     );
+
+    const workspaces = await Promise.all(
+        geofences.map(async (geofence) => {
+            const assignedEmployees = await resolveWorkspaceEmployees(
+                geofence,
+                allEmployees
+            );
+            const verifications = assignedEmployees.map((employee) => {
+                const latestLocation = latestByEmployee.get(
+                    String(employee._id)
+                );
+                const distance = latestLocation?.location
+                    ? distanceMeters(latestLocation.location, geofence.location)
+                    : null;
+                const inside =
+                    distance !== null && distance <= geofence.radiusMeters;
+
+                return {
+                    employee,
+                    latestLocation,
+                    distanceMeters: distance,
+                    insideBoundary: inside,
+                    status: latestLocation
+                        ? inside
+                            ? 'Inside'
+                            : 'Outside'
+                        : 'No GPS',
+                    validationMessage: latestLocation
+                        ? inside
+                            ? `Inside ${geofence.name} boundary`
+                            : `Outside ${geofence.name} by ${Math.max(
+                                  0,
+                                  distance - geofence.radiusMeters
+                              )} meters`
+                        : 'No latest GPS location available'
+                };
+            });
+
+            return {
+                geofence,
+                assignedEmployeeCount: assignedEmployees.length,
+                insideCount: verifications.filter(
+                    (item) => item.status === 'Inside'
+                ).length,
+                outsideCount: verifications.filter(
+                    (item) => item.status === 'Outside'
+                ).length,
+                missingGpsCount: verifications.filter(
+                    (item) => item.status === 'No GPS'
+                ).length,
+                verifications
+            };
+        })
+    );
+
+    return {
+        summary: {
+            workspaces: workspaces.length,
+            mappedEmployees: workspaces.reduce(
+                (total, item) => total + item.assignedEmployeeCount,
+                0
+            ),
+            inside: workspaces.reduce(
+                (total, item) => total + item.insideCount,
+                0
+            ),
+            outside: workspaces.reduce(
+                (total, item) => total + item.outsideCount,
+                0
+            ),
+            missingGps: workspaces.reduce(
+                (total, item) => total + item.missingGpsCount,
+                0
+            )
+        },
+        workspaces
+    };
+};
 
 const createVisit = async (payload = {}, user = {}) => {
     const customer = payload.customerId
@@ -491,6 +628,7 @@ module.exports = {
     createGeofence,
     listGeofences,
     updateGeofence,
+    listWorkspaceVerification,
     createVisit,
     listVisits,
     checkInVisit,

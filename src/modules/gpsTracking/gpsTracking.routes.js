@@ -17,6 +17,11 @@ router.post(
 router.get('/routes', authorize('gps:read'), gpsController.routeHistory);
 
 router.get('/geofences', authorize('gps:read'), gpsController.listGeofences);
+router.get(
+    '/workspace-verification',
+    authorize('gps:read'),
+    gpsController.workspaceVerification
+);
 router.post('/geofences', authorize('gps:write'), gpsController.createGeofence);
 router.put(
     '/geofences/:id',

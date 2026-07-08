@@ -58,6 +58,14 @@ exports.updateGeofence = wrap(async (req, res) => {
     );
 });
 
+exports.workspaceVerification = wrap(async (req, res) => {
+    ok(
+        res,
+        await gpsService.listWorkspaceVerification(),
+        'Workspace verification loaded'
+    );
+});
+
 exports.listVisits = wrap(async (req, res) => {
     ok(res, await gpsService.listVisits(req.query), 'Visits loaded');
 });
