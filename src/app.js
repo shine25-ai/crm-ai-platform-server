@@ -32,6 +32,12 @@ const noteRoutes = require('./modules/notes/note.routes');
 const leaveRoutes = require('./modules/leave/leave.routes');
 const assetRoutes = require('./modules/assets/asset.routes');
 const reportRoutes = require('./modules/reports/report.routes');
+const projectRoutes = require('./modules/projects/project.routes');
+const resourcePlanningRoutes = require('./modules/resourcePlanning/resourcePlanning.routes');
+const billingRoutes = require('./modules/billing/billing.routes');
+const timesheetRoutes = require('./modules/timesheets/timesheet.routes');
+const documentRoutes = require('./modules/documents/document.routes');
+const issueRoutes = require('./modules/issues/issue.routes');
 
 const app = express();
 
@@ -74,6 +80,12 @@ app.use('/api/communications', communicationRoutes);
 app.use('/api/leave', leaveRoutes);
 app.use('/api/assets', assetRoutes);
 app.use('/api/reports', reportRoutes);
+app.use('/api/projects', projectRoutes);
+app.use('/api/resources', resourcePlanningRoutes);
+app.use('/api/billing', billingRoutes);
+app.use('/api/timesheets', timesheetRoutes);
+app.use('/api/documents', documentRoutes);
+app.use('/api/issues', issueRoutes);
 
 app.use('/api/chat', chatRoutes);
 
