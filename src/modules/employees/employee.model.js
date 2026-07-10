@@ -107,6 +107,10 @@ const employeeSchema = new mongoose.Schema(
             salary: String,
             workLocation: String
         },
+        skills: {
+            type: [String],
+            default: []
+        },
 
         attendance: [attendanceSchema],
         performance: {

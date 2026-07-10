@@ -35,6 +35,12 @@ const shiftRoutes = require('./modules/shifts/shift.routes');
 const projectActivityRoutes = require('./modules/projects/projectActivity.routes');
 const expenseRoutes = require('./modules/expenses/expense.routes');
 const reportRoutes = require('./modules/reports/report.routes');
+const projectRoutes = require('./modules/projects/project.routes');
+const resourcePlanningRoutes = require('./modules/resourcePlanning/resourcePlanning.routes');
+const billingRoutes = require('./modules/billing/billing.routes');
+const timesheetRoutes = require('./modules/timesheets/timesheet.routes');
+const documentRoutes = require('./modules/documents/document.routes');
+const issueRoutes = require('./modules/issues/issue.routes');
 const gpsTrackingRoutes = require('./modules/gpsTracking/gpsTracking.routes');
 
 const app = express();
@@ -81,6 +87,12 @@ app.use('/api/shifts', shiftRoutes);
 app.use('/api/project-activities', projectActivityRoutes);
 app.use('/api/expenses', expenseRoutes);
 app.use('/api/reports', reportRoutes);
+app.use('/api/projects', projectRoutes);
+app.use('/api/resources', resourcePlanningRoutes);
+app.use('/api/billing', billingRoutes);
+app.use('/api/timesheets', timesheetRoutes);
+app.use('/api/documents', documentRoutes);
+app.use('/api/issues', issueRoutes);
 app.use('/api/gps-tracking', gpsTrackingRoutes);
 
 app.use('/api/chat', chatRoutes);
