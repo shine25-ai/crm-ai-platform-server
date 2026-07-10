@@ -41,6 +41,8 @@ const emailTemplateSchema = new mongoose.Schema(
 const whatsappTemplateSchema = new mongoose.Schema(
     {
         name: { type: String, required: true, trim: true },
+        metaTemplateName: { type: String, default: '', trim: true },
+        languageCode: { type: String, default: 'en_US', trim: true },
         category: {
             type: String,
             enum: templateCategories,
@@ -49,6 +51,15 @@ const whatsappTemplateSchema = new mongoose.Schema(
         },
         body: { type: String, required: true },
         placeholders: { type: [String], default: [] },
+        headerParameters: { type: [String], default: [] },
+        bodyParameters: { type: [String], default: [] },
+        buttonParameters: { type: [String], default: [] },
+        metaApprovalStatus: {
+            type: String,
+            enum: ['Not Synced', 'Pending', 'Approved', 'Rejected'],
+            default: 'Not Synced',
+            index: true
+        },
         approvalStatus: {
             type: String,
             enum: ['Draft', 'Pending Approval', 'Approved', 'Rejected'],
@@ -162,7 +173,7 @@ const whatsappLogSchema = new mongoose.Schema(
         errorMessage: { type: String, default: '' },
         deliveryStatus: {
             type: String,
-            enum: ['Queued', 'Sent', 'Delivered', 'Failed'],
+            enum: ['Queued', 'Sent', 'Delivered', 'Received', 'Failed'],
             default: 'Sent',
             index: true
         },
@@ -219,7 +230,35 @@ const communicationSettingSchema = new mongoose.Schema(
                 trim: true
             },
             phoneNumberId: { type: String, default: '', trim: true },
-            accessTokenEncrypted: { type: String, default: '', select: false }
+            whatsappBusinessAccountId: {
+                type: String,
+                default: '',
+                trim: true
+            },
+            businessPortfolioId: { type: String, default: '', trim: true },
+            registeredPhoneNumber: { type: String, default: '', trim: true },
+            webhookCallbackBaseUrl: {
+                type: String,
+                default: '',
+                trim: true
+            },
+            accessTokenEncrypted: { type: String, default: '', select: false },
+            webhookVerifyTokenEncrypted: {
+                type: String,
+                default: '',
+                select: false
+            },
+            appId: { type: String, default: '', trim: true },
+            appSecretEncrypted: { type: String, default: '', select: false },
+            autoRefreshToken: { type: Boolean, default: true },
+            tokenExpiresAt: { type: Date, default: null },
+            lastTokenRefreshAt: { type: Date, default: null },
+            tokenRefreshStatus: {
+                type: String,
+                enum: ['Not Configured', 'Active', 'Failed'],
+                default: 'Not Configured'
+            },
+            tokenRefreshError: { type: String, default: '' }
         },
         updatedBy: {
             type: mongoose.Schema.Types.ObjectId,

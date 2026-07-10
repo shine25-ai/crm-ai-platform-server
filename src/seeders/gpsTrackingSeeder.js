@@ -24,7 +24,9 @@ const demoPeople = [
         workLocation: 'Chennai',
         base: { latitude: 13.0827, longitude: 80.2707, address: 'Chennai HQ' },
         status: 'Moving',
-        batteryLevel: 72
+        batteryLevel: 72,
+        latestOffset: [0.0012, 0.001],
+        expectedWorkspaceStatus: 'Inside'
     },
     {
         employeeId: 'EMP-GPS-002',
@@ -40,7 +42,9 @@ const demoPeople = [
             address: 'Bengaluru Customer Site'
         },
         status: 'On Visit',
-        batteryLevel: 38
+        batteryLevel: 38,
+        latestOffset: [0.002, 0.0016],
+        expectedWorkspaceStatus: 'Inside'
     },
     {
         employeeId: 'EMP-GPS-003',
@@ -56,7 +60,9 @@ const demoPeople = [
             address: 'Mumbai Territory'
         },
         status: 'Idle',
-        batteryLevel: 18
+        batteryLevel: 18,
+        latestOffset: [0.012, 0.013],
+        expectedWorkspaceStatus: 'Outside'
     },
     {
         employeeId: 'EMP-GPS-004',
@@ -72,7 +78,9 @@ const demoPeople = [
             address: 'Hyderabad Project Site'
         },
         status: 'Online',
-        batteryLevel: 91
+        batteryLevel: 91,
+        latestOffset: [0.0014, 0.0012],
+        expectedWorkspaceStatus: 'Inside'
     }
 ];
 
@@ -206,7 +214,11 @@ const seedLocations = async (employees) => {
 
     const records = [];
     for (const person of employees) {
-        routeOffsets.forEach(([latOffset, lonOffset], index) => {
+        routeOffsets.forEach((offset, index) => {
+            const [latOffset, lonOffset] =
+                index === routeOffsets.length - 1
+                    ? person.latestOffset || offset
+                    : offset;
             records.push({
                 employeeId: person.employee._id,
                 userId: person.employee.userId,
@@ -221,7 +233,9 @@ const seedLocations = async (employees) => {
                     address:
                         index === 0
                             ? person.base.address
-                            : `${person.workLocation} route point ${index}`
+                            : index === routeOffsets.length - 1
+                              ? `${person.workLocation} latest GPS location (${person.expectedWorkspaceStatus})`
+                              : `${person.workLocation} route point ${index}`
                 },
                 status:
                     index === routeOffsets.length - 1
@@ -240,7 +254,8 @@ const seedLocations = async (employees) => {
 };
 
 const seedGeofences = async (employees) => {
-    for (const fence of geofences) {
+    for (const [index, fence] of geofences.entries()) {
+        const assignedEmployee = employees[index]?.employee;
         await GPSGeofence.findOneAndUpdate(
             { name: fence.name },
             {
@@ -253,12 +268,33 @@ const seedGeofences = async (employees) => {
                     address: fence.address
                 },
                 radiusMeters: fence.radiusMeters,
-                assignedEmployees: employees.map((item) => item.employee._id),
+                assignedEmployees: assignedEmployee
+                    ? [assignedEmployee._id]
+                    : [],
                 status: 'Active'
             },
             { upsert: true, returnDocument: 'after', setDefaultsOnInsert: true }
         );
     }
+
+    await GPSGeofence.findOneAndUpdate(
+        { name: 'Field Operations Shared Workspace' },
+        {
+            name: 'Field Operations Shared Workspace',
+            type: 'Branch',
+            location: {
+                latitude: 13.083,
+                longitude: 80.271,
+                accuracy: 10,
+                address: 'Shared fallback workspace for Field Operations'
+            },
+            radiusMeters: 600,
+            assignedEmployees: [],
+            assignedDepartment: employees[0]?.employee.department || null,
+            status: 'Active'
+        },
+        { upsert: true, returnDocument: 'after', setDefaultsOnInsert: true }
+    );
 };
 
 const seedVisits = async (employees) => {
