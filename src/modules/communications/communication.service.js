@@ -47,10 +47,45 @@ const resolvePlaceholders = (value = '', context = {}) => {
     );
 };
 
+const normalizeList = (value = []) => {
+    if (Array.isArray(value))
+        return value.map((item) => String(item).trim()).filter(Boolean);
+    return String(value || '')
+        .split(',')
+        .map((item) => item.trim())
+        .filter(Boolean);
+};
+
+const resolveContextValue = (key = '', context = {}) => {
+    const normalizedContext = Object.entries(context).reduce(
+        (result, [contextKey, item]) => ({
+            ...result,
+            [normalizePlaceholderKey(contextKey)]: item ?? ''
+        }),
+        {}
+    );
+    return normalizedContext[normalizePlaceholderKey(key)] ?? '';
+};
+
+const buildTemplateTextParameters = (keys = [], context = {}) =>
+    normalizeList(keys)
+        .map((key) => resolveContextValue(key, context))
+        .filter((value) => value !== undefined && value !== null)
+        .map((value) => ({
+            type: 'text',
+            text: String(value)
+        }));
+
 const getSettingsWithSecrets = () =>
     CommunicationSetting.findOne({ key: 'default' }).select(
-        '+smtp.passwordEncrypted +whatsapp.accessTokenEncrypted'
+        '+smtp.passwordEncrypted +whatsapp.accessTokenEncrypted +whatsapp.webhookVerifyTokenEncrypted +whatsapp.appSecretEncrypted'
     );
+
+const parseDateOrNull = (value) => {
+    if (!value) return null;
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? null : date;
+};
 
 const publicSettings = (settings) => ({
     smtp: {
@@ -69,7 +104,29 @@ const publicSettings = (settings) => ({
             settings?.whatsapp?.apiBaseUrl ||
             'https://graph.facebook.com/v22.0',
         phoneNumberId: settings?.whatsapp?.phoneNumberId || '',
-        accessTokenConfigured: Boolean(settings?.whatsapp?.accessTokenEncrypted)
+        whatsappBusinessAccountId:
+            settings?.whatsapp?.whatsappBusinessAccountId || '',
+        businessPortfolioId: settings?.whatsapp?.businessPortfolioId || '',
+        registeredPhoneNumber: settings?.whatsapp?.registeredPhoneNumber || '',
+        webhookCallbackBaseUrl:
+            settings?.whatsapp?.webhookCallbackBaseUrl || '',
+        accessTokenConfigured: Boolean(
+            settings?.whatsapp?.accessTokenEncrypted
+        ),
+        webhookVerifyTokenConfigured: Boolean(
+            settings?.whatsapp?.webhookVerifyTokenEncrypted
+        ),
+        appId: settings?.whatsapp?.appId || '',
+        appSecretConfigured: Boolean(settings?.whatsapp?.appSecretEncrypted),
+        autoRefreshToken: settings?.whatsapp?.autoRefreshToken !== false,
+        tokenExpiresAt: settings?.whatsapp?.tokenExpiresAt || null,
+        lastTokenRefreshAt: settings?.whatsapp?.lastTokenRefreshAt || null,
+        tokenRefreshStatus:
+            settings?.whatsapp?.tokenRefreshStatus === 'Not Configured' &&
+            settings?.whatsapp?.accessTokenEncrypted
+                ? 'Active'
+                : settings?.whatsapp?.tokenRefreshStatus || 'Not Configured',
+        tokenRefreshError: settings?.whatsapp?.tokenRefreshError || ''
     },
     updatedAt: settings?.updatedAt || null
 });
@@ -112,9 +169,41 @@ const updateCommunicationSettings = async (payload = {}, userId) => {
         settings.whatsapp.phoneNumberId = String(
             payload.whatsapp.phoneNumberId || ''
         ).trim();
+        settings.whatsapp.whatsappBusinessAccountId = String(
+            payload.whatsapp.whatsappBusinessAccountId || ''
+        ).trim();
+        settings.whatsapp.businessPortfolioId = String(
+            payload.whatsapp.businessPortfolioId || ''
+        ).trim();
+        settings.whatsapp.registeredPhoneNumber = String(
+            payload.whatsapp.registeredPhoneNumber || ''
+        ).trim();
+        settings.whatsapp.webhookCallbackBaseUrl = String(
+            payload.whatsapp.webhookCallbackBaseUrl || ''
+        )
+            .trim()
+            .replace(/\/+$/, '');
+        settings.whatsapp.appId = String(payload.whatsapp.appId || '').trim();
+        settings.whatsapp.autoRefreshToken =
+            payload.whatsapp.autoRefreshToken !== false;
+        settings.whatsapp.tokenExpiresAt = parseDateOrNull(
+            payload.whatsapp.tokenExpiresAt
+        );
+        if (payload.whatsapp.appSecret) {
+            settings.whatsapp.appSecretEncrypted = encryptSecret(
+                payload.whatsapp.appSecret
+            );
+        }
         if (payload.whatsapp.accessToken) {
             settings.whatsapp.accessTokenEncrypted = encryptSecret(
                 payload.whatsapp.accessToken
+            );
+            settings.whatsapp.tokenRefreshStatus = 'Active';
+            settings.whatsapp.tokenRefreshError = '';
+        }
+        if (payload.whatsapp.webhookVerifyToken) {
+            settings.whatsapp.webhookVerifyTokenEncrypted = encryptSecret(
+                payload.whatsapp.webhookVerifyToken
             );
         }
     }
@@ -122,6 +211,172 @@ const updateCommunicationSettings = async (payload = {}, userId) => {
     settings.updatedBy = userId;
     await settings.save();
     return publicSettings(settings);
+};
+
+const getWhatsappAccessToken = (settings) =>
+    decryptSecret(settings.whatsapp.accessTokenEncrypted);
+
+const refreshWhatsappAccessToken = async () => {
+    const settings = await getSettingsWithSecrets();
+    if (!settings) throw new AppError('Communication settings not found', 404);
+
+    const missing = [];
+    if (!settings.whatsapp?.accessTokenEncrypted) missing.push('access token');
+    if (!settings.whatsapp?.appId) missing.push('Meta app id');
+    if (!settings.whatsapp?.appSecretEncrypted) missing.push('Meta app secret');
+    if (missing.length) {
+        throw new AppError(
+            `WhatsApp token refresh is incomplete: ${missing.join(', ')}`,
+            400
+        );
+    }
+
+    try {
+        const response = await axios.get(
+            `${settings.whatsapp.apiBaseUrl}/oauth/access_token`,
+            {
+                params: {
+                    grant_type: 'fb_exchange_token',
+                    client_id: settings.whatsapp.appId,
+                    client_secret: decryptSecret(
+                        settings.whatsapp.appSecretEncrypted
+                    ),
+                    fb_exchange_token: getWhatsappAccessToken(settings)
+                }
+            }
+        );
+        const nextToken = response.data?.access_token;
+        if (!nextToken) {
+            throw new AppError('Meta did not return a refreshed token', 502);
+        }
+
+        settings.whatsapp.accessTokenEncrypted = encryptSecret(nextToken);
+        settings.whatsapp.tokenExpiresAt = response.data?.expires_in
+            ? new Date(Date.now() + Number(response.data.expires_in) * 1000)
+            : null;
+        settings.whatsapp.lastTokenRefreshAt = new Date();
+        settings.whatsapp.tokenRefreshStatus = 'Active';
+        settings.whatsapp.tokenRefreshError = '';
+        await settings.save();
+        return publicSettings(settings);
+    } catch (error) {
+        const providerError =
+            error.response?.data?.error?.message || error.message;
+        settings.whatsapp.tokenRefreshStatus = 'Failed';
+        settings.whatsapp.tokenRefreshError = providerError;
+        await settings.save().catch(() => {});
+        throw new AppError(
+            `WhatsApp token refresh failed: ${providerError}`,
+            error.statusCode || 502
+        );
+    }
+};
+
+const ensureFreshWhatsappAccessToken = async (settings) => {
+    if (
+        !settings.whatsapp?.autoRefreshToken ||
+        !settings.whatsapp?.tokenExpiresAt
+    ) {
+        return getWhatsappAccessToken(settings);
+    }
+
+    const refreshWindowMs = 7 * 24 * 60 * 60 * 1000;
+    const expiresAt = new Date(settings.whatsapp.tokenExpiresAt).getTime();
+    if (Number.isNaN(expiresAt) || expiresAt - Date.now() > refreshWindowMs) {
+        return getWhatsappAccessToken(settings);
+    }
+
+    await refreshWhatsappAccessToken();
+    const refreshedSettings = await getSettingsWithSecrets();
+    return getWhatsappAccessToken(refreshedSettings);
+};
+
+const verifyWhatsappWebhook = async ({ mode, token, challenge }) => {
+    if (mode !== 'subscribe' || !token || !challenge) {
+        throw new AppError(
+            'Invalid WhatsApp webhook verification request',
+            400
+        );
+    }
+
+    const settings = await getSettingsWithSecrets();
+    if (!settings?.whatsapp?.webhookVerifyTokenEncrypted) {
+        throw new AppError(
+            'WhatsApp webhook verify token is not configured',
+            400
+        );
+    }
+
+    const expectedToken = decryptSecret(
+        settings.whatsapp.webhookVerifyTokenEncrypted
+    );
+    if (token !== expectedToken) {
+        throw new AppError('WhatsApp webhook verify token mismatch', 403);
+    }
+
+    return challenge;
+};
+
+const mapWhatsappStatus = (status = '') => {
+    const normalizedStatus = String(status).toLowerCase();
+    if (normalizedStatus === 'failed') return 'Failed';
+    if (normalizedStatus === 'delivered') return 'Delivered';
+    if (normalizedStatus === 'read') return 'Delivered';
+    return 'Sent';
+};
+
+const handleWhatsappWebhook = async (payload = {}) => {
+    const changes =
+        payload.entry?.flatMap((entry) => entry.changes || []) || [];
+    let statusUpdates = 0;
+    let incomingMessages = 0;
+
+    for (const change of changes) {
+        const value = change.value || {};
+        const statuses = value.statuses || [];
+        const messages = value.messages || [];
+
+        for (const item of statuses) {
+            const update = {
+                deliveryStatus: mapWhatsappStatus(item.status)
+            };
+            if (String(item.status).toLowerCase() === 'read') {
+                update.readStatus = 'Read';
+            }
+            if (item.errors?.length) {
+                update.errorMessage = item.errors
+                    .map((error) => error.message || error.title || error.code)
+                    .filter(Boolean)
+                    .join('; ');
+            }
+            const result = await WhatsAppLog.updateOne(
+                { providerMessageId: item.id },
+                { $set: update }
+            );
+            statusUpdates += result.modifiedCount || 0;
+        }
+
+        for (const message of messages) {
+            const body =
+                message.text?.body ||
+                message.button?.text ||
+                message.interactive?.button_reply?.title ||
+                message.interactive?.list_reply?.title ||
+                message.type ||
+                '';
+            await WhatsAppLog.create({
+                templateName: 'Incoming WhatsApp message',
+                recipient: message.from,
+                body,
+                providerMessageId: message.id || '',
+                deliveryStatus: 'Received',
+                readStatus: 'Unread'
+            });
+            incomingMessages += 1;
+        }
+    }
+
+    return { received: true, statusUpdates, incomingMessages };
 };
 
 const assertSmtpSettings = (settings) => {
@@ -157,8 +412,12 @@ const testCommunicationSettings = async (channel) => {
     const settings = await getSettingsWithSecrets();
     if (!settings) throw new AppError('Communication settings not found', 404);
     if (channel === 'email') {
-        await createSmtpTransporter(settings).verify();
-        return { channel, connected: true };
+        try {
+            await createSmtpTransporter(settings).verify();
+            return { channel, connected: true };
+        } catch (error) {
+            throw new AppError(`SMTP connection failed: ${error.message}`, 502);
+        }
     }
     if (channel === 'whatsapp') {
         if (
@@ -168,17 +427,27 @@ const testCommunicationSettings = async (channel) => {
         ) {
             throw new AppError('WhatsApp configuration is incomplete', 400);
         }
-        await axios.get(
-            `${settings.whatsapp.apiBaseUrl}/${settings.whatsapp.phoneNumberId}`,
-            {
-                headers: {
-                    Authorization: `Bearer ${decryptSecret(
-                        settings.whatsapp.accessTokenEncrypted
-                    )}`
+        try {
+            await axios.get(
+                `${settings.whatsapp.apiBaseUrl}/${settings.whatsapp.phoneNumberId}`,
+                {
+                    headers: {
+                        Authorization: `Bearer ${await ensureFreshWhatsappAccessToken(settings)}`
+                    }
                 }
-            }
-        );
-        return { channel, connected: true };
+            );
+            return { channel, connected: true };
+        } catch (error) {
+            const providerError =
+                error.response?.data?.error?.message || error.message;
+            const providerCode = error.response?.data?.error?.code;
+            throw new AppError(
+                `WhatsApp connection failed: ${providerError}${
+                    providerCode ? ` (#${providerCode})` : ''
+                }`,
+                502
+            );
+        }
     }
     throw new AppError('Unsupported communication channel', 400);
 };
@@ -291,9 +560,15 @@ const normalizeWhatsappTemplate = (payload = {}, userId) => {
 
     return {
         name: payload.name,
+        metaTemplateName: payload.metaTemplateName || '',
+        languageCode: payload.languageCode || 'en_US',
         category: payload.category || 'General',
         body: payload.body,
         placeholders,
+        headerParameters: normalizeList(payload.headerParameters),
+        bodyParameters: normalizeList(payload.bodyParameters),
+        buttonParameters: normalizeList(payload.buttonParameters),
+        metaApprovalStatus: payload.metaApprovalStatus || 'Not Synced',
         approvalStatus: payload.approvalStatus || 'Draft',
         status: payload.status || 'Active',
         createdBy: userId
@@ -471,6 +746,54 @@ const createWhatsappLog = async (payload = {}, userId) => {
     return populateWhatsappLog(WhatsAppLog.findById(log._id));
 };
 
+const buildWhatsappTemplateMessage = (template, context) => {
+    const components = [];
+    const headerParameters = buildTemplateTextParameters(
+        template.headerParameters,
+        context
+    );
+    const bodyParameters = buildTemplateTextParameters(
+        template.bodyParameters,
+        context
+    );
+    const buttonParameters = buildTemplateTextParameters(
+        template.buttonParameters,
+        context
+    );
+
+    if (headerParameters.length) {
+        components.push({
+            type: 'header',
+            parameters: headerParameters
+        });
+    }
+    if (bodyParameters.length) {
+        components.push({
+            type: 'body',
+            parameters: bodyParameters
+        });
+    }
+    if (buttonParameters.length) {
+        components.push({
+            type: 'button',
+            sub_type: 'url',
+            index: '0',
+            parameters: buttonParameters
+        });
+    }
+
+    return {
+        type: 'template',
+        template: {
+            name: template.metaTemplateName,
+            language: {
+                code: template.languageCode || 'en_US'
+            },
+            ...(components.length ? { components } : {})
+        }
+    };
+};
+
 const sendCommunication = async (payload = {}, userId) => {
     const channel = String(payload.channel || '').toLowerCase();
     if (!['email', 'whatsapp'].includes(channel)) {
@@ -494,6 +817,16 @@ const sendCommunication = async (payload = {}, userId) => {
         template.approvalStatus !== 'Approved'
     ) {
         throw new AppError('Only approved WhatsApp templates can be sent', 400);
+    }
+    if (
+        channel === 'whatsapp' &&
+        template?.metaTemplateName &&
+        template.metaApprovalStatus !== 'Approved'
+    ) {
+        throw new AppError(
+            'Meta WhatsApp template must be marked as approved before sending',
+            400
+        );
     }
 
     const [settings, context] = await Promise.all([
@@ -593,6 +926,7 @@ const sendCommunication = async (payload = {}, userId) => {
         ''
     );
     if (!recipient) throw new AppError('Recipient mobile is required', 400);
+    const useMetaTemplate = Boolean(template?.metaTemplateName);
     const log = await WhatsAppLog.create({
         templateId: template?._id || null,
         templateName: template?.name || 'Custom message',
@@ -603,21 +937,25 @@ const sendCommunication = async (payload = {}, userId) => {
         ...relatedFields
     });
     let response;
+    const whatsappMessagePayload = useMetaTemplate
+        ? buildWhatsappTemplateMessage(template, context)
+        : {
+              type: 'text',
+              text: { preview_url: false, body }
+          };
     try {
+        const accessToken = await ensureFreshWhatsappAccessToken(settings);
         response = await axios.post(
             `${settings.whatsapp.apiBaseUrl}/${settings.whatsapp.phoneNumberId}/messages`,
             {
                 messaging_product: 'whatsapp',
                 recipient_type: 'individual',
                 to: recipient,
-                type: 'text',
-                text: { preview_url: false, body }
+                ...whatsappMessagePayload
             },
             {
                 headers: {
-                    Authorization: `Bearer ${decryptSecret(
-                        settings.whatsapp.accessTokenEncrypted
-                    )}`,
+                    Authorization: `Bearer ${accessToken}`,
                     'Content-Type': 'application/json'
                 }
             }
@@ -703,6 +1041,9 @@ module.exports = {
     createWhatsappLog,
     getCommunicationSettings,
     updateCommunicationSettings,
+    refreshWhatsappAccessToken,
+    verifyWhatsappWebhook,
+    handleWhatsappWebhook,
     testCommunicationSettings,
     resolvePlaceholders,
     sendCommunication,

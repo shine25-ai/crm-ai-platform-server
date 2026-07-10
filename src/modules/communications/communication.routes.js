@@ -4,6 +4,12 @@ const communicationController = require('./communication.controller');
 const authMiddleware = require('../../shared/middleware/auth.middleware');
 const authorize = require('../../shared/middleware/permission.middleware');
 
+router.get('/webhook/whatsapp', communicationController.verifyWhatsappWebhook);
+router.post(
+    '/webhook/whatsapp',
+    communicationController.receiveWhatsappWebhook
+);
+
 router.use(authMiddleware);
 
 router.get(
@@ -26,6 +32,11 @@ router.post(
     '/settings/test',
     authorize('settings:write'),
     communicationController.testSettings
+);
+router.post(
+    '/settings/whatsapp/refresh-token',
+    authorize('settings:write'),
+    communicationController.refreshWhatsappToken
 );
 router.post(
     '/send',
