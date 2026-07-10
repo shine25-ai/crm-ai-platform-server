@@ -40,6 +40,7 @@ const {
     scheduleInvoiceGeneration
 } = require('./shared/services/invoiceGeneration.cron');
 // const seedDepartmentsAndEmployees = require('./seeders/departmentAndEmployeeSeeder.js');
+const automationRunner = require('./modules/automations/automationRunner');
 const PORT = process.env.PORT || 5000;
 
 const startServer = async () => {
@@ -78,6 +79,7 @@ const startServer = async () => {
             scheduleLeadFollowUpReminders();
             scheduleInvoiceGeneration();
             runInvoiceGeneration();
+            automationRunner.init();
         });
     } catch (error) {
         console.error('Server startup failed:', error);

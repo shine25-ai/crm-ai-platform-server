@@ -118,4 +118,16 @@ router.get(
     communicationController.getTimeline
 );
 
+router.get(
+    '/health',
+    authorize('communications:read'),
+    communicationController.syncConnectionHealth
+);
+
+router.post(
+    '/campaigns',
+    authorize('communications:write'),
+    communicationController.sendBulkCampaign
+);
+
 module.exports = router;

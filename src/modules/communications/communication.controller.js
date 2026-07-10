@@ -300,6 +300,33 @@ const getTimeline = async (req, res, next) => {
     }
 };
 
+const syncConnectionHealth = async (req, res, next) => {
+    try {
+        return success(
+            res,
+            'Connection health synchronized successfully',
+            await communicationService.syncConnectionHealth()
+        );
+    } catch (error) {
+        next(error);
+    }
+};
+
+const sendBulkCampaign = async (req, res, next) => {
+    try {
+        return success(
+            res,
+            'Bulk campaign dispatched successfully',
+            await communicationService.sendBulkCampaign(
+                req.body,
+                req.user.userId
+            )
+        );
+    } catch (error) {
+        next(error);
+    }
+};
+
 module.exports = {
     listEmailTemplates,
     createEmailTemplate,
@@ -321,5 +348,7 @@ module.exports = {
     updateSettings,
     testSettings,
     sendCommunication,
-    getTimeline
+    getTimeline,
+    syncConnectionHealth,
+    sendBulkCampaign
 };

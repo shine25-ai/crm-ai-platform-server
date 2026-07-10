@@ -183,6 +183,82 @@ const testCommunicationSettings = async (channel) => {
     throw new AppError('Unsupported communication channel', 400);
 };
 
+/**
+ * Run connection health sync check for SMTP and WhatsApp
+ */
+const syncConnectionHealth = async () => {
+    let emailStatus = 'Disconnected';
+    let whatsappStatus = 'Disconnected';
+
+    try {
+        await testCommunicationSettings('email');
+        emailStatus = 'Connected';
+    } catch (err) {
+        // Silently capture error
+    }
+
+    try {
+        await testCommunicationSettings('whatsapp');
+        whatsappStatus = 'Connected';
+    } catch (err) {
+        // Silently capture error
+    }
+
+    return {
+        smtp: emailStatus,
+        whatsapp: whatsappStatus,
+        checkedAt: new Date()
+    };
+};
+
+/**
+ * Send bulk marketing campaigns
+ */
+const sendBulkCampaign = async (payload = {}, userId) => {
+    const { channel, templateId, recipients, subject, body } = payload;
+    if (!recipients || !Array.isArray(recipients) || recipients.length === 0) {
+        throw new AppError(
+            'Recipients list is required and must not be empty',
+            400
+        );
+    }
+
+    const results = {
+        total: recipients.length,
+        sent: 0,
+        failed: 0,
+        details: []
+    };
+
+    for (const recipient of recipients) {
+        try {
+            await sendCommunication(
+                {
+                    channel,
+                    templateId,
+                    recipient,
+                    subject,
+                    body,
+                    relatedType: payload.relatedType,
+                    relatedId: payload.relatedId
+                },
+                userId
+            );
+            results.sent++;
+            results.details.push({ recipient, status: 'Success' });
+        } catch (err) {
+            results.failed++;
+            results.details.push({
+                recipient,
+                status: 'Failed',
+                error: err.message
+            });
+        }
+    }
+
+    return results;
+};
+
 const buildTemplateContext = async (payload, userId) => {
     const [user, relatedRecord] = await Promise.all([
         User.findById(userId).lean(),
@@ -706,5 +782,7 @@ module.exports = {
     testCommunicationSettings,
     resolvePlaceholders,
     sendCommunication,
-    getCommunicationTimeline
+    getCommunicationTimeline,
+    syncConnectionHealth,
+    sendBulkCampaign
 };

@@ -70,7 +70,13 @@ const permissionCatalog = [
     ['customers:merge', 'Merge Duplicate Customer Profiles', 'Customers'],
     ['reports:export', 'Export Generated Analytics Reports', 'Reports'],
     ['settings:manage', 'Manage General Application Settings', 'Settings'],
-    ['auditlogs:view', 'View Database Audit Logs Trail', 'Audit Logs']
+    ['auditlogs:view', 'View Database Audit Logs Trail', 'Audit Logs'],
+    ['ai:read', 'Read AI Assistant Insights', 'AI Assistant'],
+    ['ai:write', 'Write AI Assistant Chat Prompt', 'AI Assistant'],
+    ['workflows:read', 'Read Workflow Engine Rules', 'Workflow Engine'],
+    ['workflows:write', 'Write Workflow Engine Rules', 'Workflow Engine'],
+    ['automations:read', 'Read Scheduled Automations', 'Automation Engine'],
+    ['automations:write', 'Write Scheduled Automations', 'Automation Engine']
 ];
 
 const rolePermissions = {
@@ -125,7 +131,13 @@ const rolePermissions = {
         'gps:write',
         'assets:read',
         'assets:write',
-        'assets:delete'
+        'assets:delete',
+        'ai:read',
+        'ai:write',
+        'workflows:read',
+        'workflows:write',
+        'automations:read',
+        'automations:write'
     ],
     HR: [
         'dashboard:view',

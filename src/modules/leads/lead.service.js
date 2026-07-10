@@ -325,6 +325,10 @@ const createLead = async (data, user) => {
 
     await logAudit(user.userId, 'Leads', 'Create', null, lead.toObject());
 
+    // Trigger workflow engine
+    const workflowService = require('../workflows/workflow.service');
+    workflowService.trigger('lead.created', lead.toObject());
+
     return populateLead(Lead.findById(lead._id));
 };
 
@@ -431,6 +435,15 @@ const updateLead = async (id, data, user) => {
     );
 
     await logAudit(user.userId, 'Leads', 'Update', oldData, lead.toObject());
+
+    // Trigger workflow engine
+    const workflowService = require('../workflows/workflow.service');
+    if (data.status && data.status !== previousStatus) {
+        workflowService.trigger('lead.status.changed', lead.toObject());
+    }
+    if (data.status === 'Converted' && previousStatus !== 'Converted') {
+        workflowService.trigger('lead.converted', lead.toObject());
+    }
 
     return populateLead(Lead.findById(lead._id));
 };
