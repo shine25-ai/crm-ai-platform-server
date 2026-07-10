@@ -1,5 +1,6 @@
 const customerService = require('./customer.service');
 const ApiResponse = require('../../shared/utils/response');
+const projectActivityService = require('../projects/projectActivity.service');
 
 const escapeHtml = (value = '') =>
     String(value)
@@ -233,7 +234,10 @@ const updateCustomer = async (req, res, next) => {
 
 const deleteCustomer = async (req, res, next) => {
     try {
-        const result = await customerService.deleteCustomer(req.params.id);
+        const result = await customerService.deleteCustomer(
+            req.params.id,
+            projectActivityService.requestAuditContext(req)
+        );
         return ApiResponse.success(
             res,
             'Customer deleted successfully',
@@ -398,7 +402,8 @@ const addProjectEngagement = async (req, res, next) => {
     try {
         const customer = await customerService.addProjectEngagement(
             req.params.id,
-            req.body
+            req.body,
+            projectActivityService.requestAuditContext(req)
         );
         return ApiResponse.success(
             res,
@@ -411,12 +416,48 @@ const addProjectEngagement = async (req, res, next) => {
     }
 };
 
+const updateProjectEngagement = async (req, res, next) => {
+    try {
+        const customer = await customerService.updateProjectEngagement(
+            req.params.id,
+            req.params.engagementId,
+            req.body,
+            projectActivityService.requestAuditContext(req)
+        );
+        return ApiResponse.success(
+            res,
+            'Project engagement updated successfully',
+            customer
+        );
+    } catch (error) {
+        next(error);
+    }
+};
+
+const getProjectActivities = async (req, res, next) => {
+    try {
+        const activities = await projectActivityService.listProjectActivities(
+            req.params.id,
+            req.params.engagementId,
+            req.query
+        );
+        return ApiResponse.success(
+            res,
+            'Project activity history retrieved successfully',
+            activities
+        );
+    } catch (error) {
+        next(error);
+    }
+};
+
 const generateInvoices = async (req, res, next) => {
     try {
         const customer = await customerService.generateInvoices(
             req.params.id,
             req.params.engagementId,
-            req.body
+            req.body,
+            projectActivityService.requestAuditContext(req)
         );
         return ApiResponse.success(
             res,
@@ -434,7 +475,8 @@ const addPaymentRecord = async (req, res, next) => {
         const customer = await customerService.addPaymentRecord(
             req.params.id,
             req.params.engagementId,
-            req.body
+            req.body,
+            projectActivityService.requestAuditContext(req)
         );
         return ApiResponse.success(
             res,
@@ -481,6 +523,8 @@ module.exports = {
     addTransaction,
     addOpportunity,
     addProjectEngagement,
+    updateProjectEngagement,
+    getProjectActivities,
     generateInvoices,
     addPaymentRecord,
     viewInvoice

@@ -47,10 +47,12 @@ const ensureDemoUser = async ({ name, email, roleCode, employeeId = null }) => {
     const role = await ensureRole(roleCode);
     const existing = await User.findOne({ email });
     if (existing) {
-        if (!existing.employeeId && employeeId) {
-            existing.employeeId = employeeId;
-            await existing.save();
-        }
+        existing.name = name;
+        existing.roleId = role._id;
+        existing.status = 'Active';
+        existing.password = await bcrypt.hash(DEFAULT_PASSWORD, 10);
+        if (employeeId) existing.employeeId = employeeId;
+        await existing.save();
         return existing;
     }
 
@@ -86,7 +88,7 @@ const ensureDemoEmployees = async () => {
     const managerUser = await ensureDemoUser({
         name: 'Vikram Shah',
         email: 'vikram.manager@optiflow.test',
-        roleCode: 'EMPLOYEE'
+        roleCode: 'TEAM_MANAGER'
     });
     const employeeUser = await ensureDemoUser({
         name: 'Aarav Nair',
@@ -172,23 +174,24 @@ const ensureDemoEmployees = async () => {
         { _id: employeeUser._id },
         { employeeId: employee._id }
     );
+    const employeeCount = await Employee.countDocuments({
+        department: department._id,
+        status: 'Active'
+    });
     await Department.updateOne(
         { _id: department._id },
-        { departmentHead: managerEmployee._id, employeeCount: 3 }
+        { departmentHead: managerEmployee._id, employeeCount }
     );
 
     return [hrEmployee, managerEmployee, employee];
 };
 
 const getEmployeesForLeaveData = async () => {
-    let employees = await Employee.find({
+    await ensureDemoEmployees();
+    const employees = await Employee.find({
         status: 'Active',
         userId: { $ne: null }
     }).sort({ createdAt: 1 });
-
-    if (employees.length === 0) {
-        employees = await ensureDemoEmployees();
-    }
 
     return employees;
 };
@@ -493,3 +496,4 @@ const seedLeaveData = async () => {
 };
 
 module.exports = seedLeaveData;
+module.exports.ensureDemoEmployees = ensureDemoEmployees;

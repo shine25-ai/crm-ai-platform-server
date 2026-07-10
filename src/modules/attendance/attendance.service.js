@@ -1,6 +1,9 @@
 const Attendance = require('./attendance.model');
 const AppError = require('../../shared/utils/appError');
 const { logActivity } = require('../../shared/services/audit.service');
+const shiftService = require('../shifts/shift.service');
+const { calculateTimesheet } = require('../shifts/shiftTime.utils');
+const gpsTrackingService = require('../gpsTracking/gpsTracking.service');
 
 const toDateTime = (shiftDate, timeValue) => {
     if (!timeValue) return new Date();
@@ -18,17 +21,43 @@ const calculateHours = (start, end) => {
 };
 
 const recalculateTotals = (record) => {
-    record.breakHours = record.breaks.reduce(
+    const actualBreakHours = record.breaks.reduce(
         (total, entry) => total + (entry.durationHours || 0),
         0
     );
-    record.workingHours = record.checkOut
-        ? Math.max(
-              0,
-              calculateHours(record.checkIn, record.checkOut) -
-                  record.breakHours
-          )
-        : 0;
+    const scheduledBreakHours =
+        Number(record.shiftSnapshot?.unpaidBreakMinutes || 0) / 60;
+    const breakHours = Math.max(actualBreakHours, scheduledBreakHours);
+    const totals = calculateTimesheet({
+        checkIn: record.checkIn,
+        checkOut: record.checkOut,
+        breakMinutes: breakHours * 60,
+        scheduledStart: record.scheduledStart,
+        scheduledEnd: record.scheduledEnd,
+        expectedMinutes: record.expectedMinutes,
+        graceInMinutes: record.shiftSnapshot?.graceInMinutes,
+        graceOutMinutes: record.shiftSnapshot?.graceOutMinutes
+    });
+
+    record.breakHours = totals.breakMinutes / 60;
+    record.workingHours = totals.workedMinutes / 60;
+    record.grossMinutes = totals.grossMinutes;
+    record.workedMinutes = totals.workedMinutes;
+    record.overtimeMinutes = totals.overtimeMinutes;
+    record.deficitMinutes = totals.deficitMinutes;
+    record.lateMinutes = totals.lateMinutes;
+    record.earlyDepartureMinutes = totals.earlyDepartureMinutes;
+    record.timesheetStatus = record.shiftAssignmentId
+        ? totals.timesheetStatus
+        : record.checkOut
+          ? 'Unscheduled'
+          : 'Open';
+    if (
+        totals.lateMinutes > 0 &&
+        ['Present', 'Late'].includes(record.attendanceStatus)
+    ) {
+        record.attendanceStatus = 'Late';
+    }
 };
 
 const toRadians = (value) => (value * Math.PI) / 180;
@@ -50,7 +79,7 @@ const distanceInMeters = (from, to) => {
     return earthRadius * c;
 };
 
-const validateLocation = (location = {}) => {
+const validateLocation = async (location = {}, employeeId = null) => {
     const latitude = Number(location.latitude);
     const longitude = Number(location.longitude);
 
@@ -60,6 +89,14 @@ const validateLocation = (location = {}) => {
             validated: false,
             validationMessage: 'Latitude and longitude are required'
         };
+    }
+
+    const geofenceValidation = await gpsTrackingService.validateAgainstGeofence(
+        employeeId,
+        { ...location, latitude, longitude }
+    );
+    if (geofenceValidation.geofenceId || geofenceValidation.geofenceName) {
+        return geofenceValidation;
     }
 
     const officeLatitude = Number(process.env.ATTENDANCE_OFFICE_LATITUDE);
@@ -109,12 +146,79 @@ const checkIn = async (
     if (active) {
         throw new AppError('Already checked in. Please check out first.', 400);
     }
-    const record = await Attendance.create({
+    const checkIn = toDateTime(shiftDate, checkInTime);
+    const resolvedShift = await shiftService.getAssignmentForCheckIn(
         employeeId,
         shiftDate,
-        checkIn: toDateTime(shiftDate, checkInTime),
-        location: validateLocation(location),
-        attendanceStatus: 'Present'
+        checkIn
+    );
+    const attendanceShiftDate = resolvedShift?.shiftDate || shiftDate;
+    const shiftFields = {};
+
+    if (resolvedShift) {
+        const existing = await Attendance.exists({
+            employeeId,
+            shiftDate: attendanceShiftDate,
+            shiftAssignmentId: resolvedShift.assignment._id
+        });
+        if (existing) {
+            throw new AppError(
+                'Attendance has already been recorded for the assigned shift',
+                400
+            );
+        }
+
+        const { assignment, shift, segment, schedule } = resolvedShift;
+        const lateMinutes = Math.max(
+            0,
+            Math.round((checkIn - schedule.scheduledStart) / 60000) -
+                Number(segment.graceInMinutes || 0)
+        );
+        Object.assign(shiftFields, {
+            shiftAssignmentId: assignment._id,
+            shiftId: shift._id,
+            shiftSnapshot: {
+                code: shift.code,
+                name: shift.name,
+                configurationType: shift.configurationType,
+                segmentIndex: assignment.segmentIndex,
+                segmentName: segment.name,
+                startTime: segment.startTime,
+                endTime: segment.endTime,
+                timezone: shift.timezone,
+                overnight: schedule.overnight,
+                unpaidBreakMinutes: segment.unpaidBreakMinutes,
+                graceInMinutes: segment.graceInMinutes,
+                graceOutMinutes: segment.graceOutMinutes
+            },
+            scheduledStart: schedule.scheduledStart,
+            scheduledEnd: schedule.scheduledEnd,
+            expectedMinutes: schedule.expectedMinutes,
+            lateMinutes,
+            timesheetStatus: 'Open'
+        });
+    }
+
+    const validatedLocation = await validateLocation(location, employeeId);
+    const gpsSettings = await gpsTrackingService.getSettings();
+    if (
+        gpsSettings.enforceAttendanceGeofence &&
+        validatedLocation.validated === false
+    ) {
+        throw new AppError(
+            validatedLocation.validationMessage ||
+                'Attendance check-in is outside the allowed geofence',
+            400
+        );
+    }
+
+    const record = await Attendance.create({
+        employeeId,
+        shiftDate: attendanceShiftDate,
+        checkIn,
+        location: validatedLocation,
+        attendanceStatus: shiftFields.lateMinutes > 0 ? 'Late' : 'Present',
+        ...shiftFields
     });
     await logActivity(userId, 'CHECK_IN', 'Attendance', 'Checked in for shift');
     return record;
@@ -212,6 +316,7 @@ const buildAttendanceQuery = (filters = {}, fallbackEmployeeId = null) => {
 const getLogsByEmployee = async (employeeId, filters = {}) => {
     return await Attendance.find(buildAttendanceQuery(filters, employeeId))
         .populate('employeeId', 'name employeeId email designation')
+        .populate('shiftId', 'code name configurationType')
         .sort({
             shiftDate: -1,
             createdAt: -1
@@ -231,6 +336,7 @@ const getMonthlyReport = async (employeeId, month, year, filters = {}) => {
         )
     )
         .populate('employeeId', 'name employeeId email designation')
+        .populate('shiftId', 'code name configurationType')
         .sort({ shiftDate: 1 });
 
     return {
@@ -247,7 +353,23 @@ const getMonthlyReport = async (employeeId, month, year, filters = {}) => {
             totalBreakHours: records.reduce(
                 (total, record) => total + (record.breakHours || 0),
                 0
-            )
+            ),
+            scheduledHours:
+                records.reduce(
+                    (total, record) => total + (record.expectedMinutes || 0),
+                    0
+                ) / 60,
+            overtimeHours:
+                records.reduce(
+                    (total, record) => total + (record.overtimeMinutes || 0),
+                    0
+                ) / 60,
+            deficitHours:
+                records.reduce(
+                    (total, record) => total + (record.deficitMinutes || 0),
+                    0
+                ) / 60,
+            lateDays: records.filter((record) => record.lateMinutes > 0).length
         },
         records
     };

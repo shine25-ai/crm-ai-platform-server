@@ -11,6 +11,45 @@ const login = async (req, res, next) => {
     }
 };
 
+const getFrontendUrl = () =>
+    (process.env.FRONTEND_URL || 'http://localhost:5173').replace(/\/$/, '');
+
+const redirectToOAuthError = (res, message) => {
+    const params = new URLSearchParams({
+        error: message || 'Social login failed.'
+    });
+
+    return res.redirect(`${getFrontendUrl()}/oauth/callback?${params}`);
+};
+
+const startOAuthLogin = async (req, res) => {
+    try {
+        const authorizationUrl = authService.getOAuthAuthorizationUrl(
+            req.params.provider
+        );
+        return res.redirect(authorizationUrl);
+    } catch (error) {
+        return redirectToOAuthError(res, error.message);
+    }
+};
+
+const completeOAuthLogin = async (req, res) => {
+    try {
+        const result = await authService.completeOAuthLogin(
+            req.params.provider,
+            req.query
+        );
+        const params = new URLSearchParams({
+            token: result.token,
+            user: Buffer.from(JSON.stringify(result.user)).toString('base64url')
+        });
+
+        return res.redirect(`${getFrontendUrl()}/oauth/callback?${params}`);
+    } catch (error) {
+        return redirectToOAuthError(res, error.message);
+    }
+};
+
 const refreshToken = async (req, res, next) => {
     res.json({ message: 'Refresh Token endpoint' });
 };
@@ -91,6 +130,8 @@ const completeOnboarding = async (req, res, next) => {
 
 module.exports = {
     login,
+    startOAuthLogin,
+    completeOAuthLogin,
     refreshToken,
     logout,
     forgotPassword,
