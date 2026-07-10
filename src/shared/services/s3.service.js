@@ -186,6 +186,25 @@ const uploadLeadDocumentToS3 = async (file, leadId) => {
     return `${bucketBaseUrl}${key}`;
 };
 
+const uploadGenericDocumentToS3 = async (file, folderName) => {
+    const extension = path.extname(file.originalname).toLowerCase();
+    const baseName = path.basename(file.originalname, extension);
+    const key = `documents/${folderName}/${Date.now()}-${crypto.randomUUID()}-${sanitizeFileName(
+        baseName
+    )}${extension}`;
+
+    await s3Client.send(
+        new PutObjectCommand({
+            Bucket: bucketName,
+            Key: key,
+            Body: file.buffer,
+            ContentType: file.mimetype
+        })
+    );
+
+    return `${bucketBaseUrl}${key}`;
+};
+
 const uploadExpenseAttachmentToS3 = async (file, claimId) => {
     const extension = path.extname(file.originalname).toLowerCase();
     const baseName = path.basename(file.originalname, extension);
@@ -212,6 +231,7 @@ module.exports = {
     uploadCustomerDocumentToS3,
     uploadTaskAttachmentToS3,
     uploadLeadDocumentToS3,
+    uploadGenericDocumentToS3,
     uploadExpenseAttachmentToS3,
     deleteFileFromS3
 };

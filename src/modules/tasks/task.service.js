@@ -16,7 +16,8 @@ const path = require('path');
 const populateTask = (query) =>
     query
         .populate('assignedBy', 'name email')
-        .populate('assignedTo', 'name email');
+        .populate('assignedTo', 'name email')
+        .populate('project', 'projectName');
 
 const canManageAllTasks = async (user) => {
     const role = await Role.findById(user.roleId);
@@ -194,7 +195,8 @@ const createTask = async (data, user) => {
         priority: data.priority || 'Medium',
         dueDate: data.dueDate || null,
         progress: 0,
-        status: 'Open'
+        status: 'Open',
+        project: data.project || null
     });
 
     // Record initial assignment history

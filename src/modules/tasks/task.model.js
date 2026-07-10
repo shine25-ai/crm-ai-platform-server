@@ -26,6 +26,11 @@ const taskSchema = new mongoose.Schema(
             enum: ['Open', 'In Progress', 'On Hold', 'Completed', 'Cancelled'],
             default: 'Open'
         },
+        project: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'Project',
+            default: null
+        },
         // Soft delete fields
         isDeleted: { type: Boolean, default: false, index: true },
         deletedAt: { type: Date, default: null },
