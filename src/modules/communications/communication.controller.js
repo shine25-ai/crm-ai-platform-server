@@ -4,6 +4,28 @@ const ApiResponse = require('../../shared/utils/response');
 const success = (res, message, data, status = 200) =>
     ApiResponse.success(res, message, data, status);
 
+const verifyWhatsappWebhook = async (req, res, next) => {
+    try {
+        const challenge = await communicationService.verifyWhatsappWebhook({
+            mode: req.query['hub.mode'],
+            token: req.query['hub.verify_token'],
+            challenge: req.query['hub.challenge']
+        });
+        return res.status(200).send(challenge);
+    } catch (error) {
+        next(error);
+    }
+};
+
+const receiveWhatsappWebhook = async (req, res, next) => {
+    try {
+        await communicationService.handleWhatsappWebhook(req.body);
+        return res.status(200).send('EVENT_RECEIVED');
+    } catch (error) {
+        next(error);
+    }
+};
+
 const listEmailTemplates = async (req, res, next) => {
     try {
         return success(
@@ -269,6 +291,18 @@ const testSettings = async (req, res, next) => {
     }
 };
 
+const refreshWhatsappToken = async (req, res, next) => {
+    try {
+        return success(
+            res,
+            'WhatsApp access token refreshed successfully',
+            await communicationService.refreshWhatsappAccessToken()
+        );
+    } catch (error) {
+        next(error);
+    }
+};
+
 const sendCommunication = async (req, res, next) => {
     try {
         return success(
@@ -328,6 +362,8 @@ const sendBulkCampaign = async (req, res, next) => {
 };
 
 module.exports = {
+    verifyWhatsappWebhook,
+    receiveWhatsappWebhook,
     listEmailTemplates,
     createEmailTemplate,
     updateEmailTemplate,
@@ -347,6 +383,7 @@ module.exports = {
     getSettings,
     updateSettings,
     testSettings,
+    refreshWhatsappToken,
     sendCommunication,
     getTimeline,
     syncConnectionHealth,
