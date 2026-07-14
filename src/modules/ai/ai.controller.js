@@ -179,6 +179,31 @@ const deleteConversation = async (req, res, next) => {
     }
 };
 
+const getConversationByContext = async (req, res, next) => {
+    try {
+        const { contextModule, relatedId } = req.query;
+        if (!contextModule) {
+            return res.status(400).json({
+                success: false,
+                message: 'contextModule is required'
+            });
+        }
+        const query = {
+            userId: req.user.userId,
+            contextModule,
+            relatedId: relatedId && relatedId !== 'null' ? relatedId : null
+        };
+        const conversation = await AIConversation.findOne(query);
+        return success(
+            res,
+            'Conversation retrieved by context successfully',
+            conversation || null
+        );
+    } catch (error) {
+        next(error);
+    }
+};
+
 module.exports = {
     chat,
     generateLeadSummary,
@@ -188,5 +213,6 @@ module.exports = {
     generateFollowupSuggestions,
     listConversations,
     getConversation,
-    deleteConversation
+    deleteConversation,
+    getConversationByContext
 };

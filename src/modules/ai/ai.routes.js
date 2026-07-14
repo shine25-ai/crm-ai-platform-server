@@ -44,6 +44,12 @@ router.get(
     aiController.listConversations
 );
 
+router.get(
+    '/context',
+    authorize('ai:read'),
+    aiController.getConversationByContext
+);
+
 router.get('/history/:id', authorize('ai:read'), aiController.getConversation);
 
 router.delete(
