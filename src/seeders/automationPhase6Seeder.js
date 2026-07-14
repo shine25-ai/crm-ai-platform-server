@@ -16,51 +16,103 @@ const seedPhase6 = async () => {
         }
 
         // 1. Seed workflows
-        const workflowCount = await Workflow.countDocuments();
-        if (workflowCount === 0) {
-            await Workflow.create([
-                {
-                    name: 'Send Welcome Email Flow',
-                    description:
-                        'Triggered when a lead is created to send greeting email instantly.',
-                    triggerEvent: 'lead.created',
-                    conditions: [],
-                    actions: [
-                        {
-                            type: 'send_email',
-                            params: {
-                                subject: 'Welcome to OptiFlow!',
-                                body: 'Hi {{name}}, thank you for reaching out. We will connect with you soon.'
-                            }
+        const {
+            EmailTemplate,
+            WhatsAppTemplate
+        } = require('../modules/communications/communication.model');
+        const welcomeTemplate = await EmailTemplate.findOne({
+            name: 'Customer Welcome'
+        });
+        const demoFollowupTemplate = await WhatsAppTemplate.findOne({
+            name: 'Demo Follow-up'
+        });
+
+        // Delete existing seeded Phase 6 workflows to avoid duplicates
+        await Workflow.deleteMany({
+            name: {
+                $in: [
+                    'Send Welcome Email Flow',
+                    'Task Done Notification Flow',
+                    'WhatsApp Demo Follow-up Flow'
+                ]
+            }
+        });
+
+        await Workflow.create([
+            {
+                name: 'Send Welcome Email Flow',
+                description:
+                    'Triggered when a lead is created to send greeting email instantly.',
+                triggerEvent: 'lead.created',
+                conditions: [],
+                actions: [
+                    {
+                        type: 'send_email',
+                        params: {
+                            recipient: '{{email}}',
+                            templateId: welcomeTemplate
+                                ? welcomeTemplate._id
+                                : null,
+                            subject: welcomeTemplate
+                                ? welcomeTemplate.subject
+                                : 'Welcome to OptiFlow!',
+                            body: welcomeTemplate
+                                ? welcomeTemplate.body
+                                : 'Hi {{name}}, thank you for reaching out. We will connect with you soon.'
                         }
-                    ],
-                    status: 'Active',
-                    createdBy: admin._id
-                },
-                {
-                    name: 'Task Done Notification Flow',
-                    description:
-                        'Notifies team manager when a key task status changes to Completed.',
-                    triggerEvent: 'task.completed',
-                    conditions: [],
-                    actions: [
-                        {
-                            type: 'send_notification',
-                            params: {
-                                title: 'Task Completed: {{title}}',
-                                message:
-                                    'Task {{title}} was completed by {{assignedToName}}.'
-                            }
+                    }
+                ],
+                status: 'Active',
+                createdBy: admin._id
+            },
+            {
+                name: 'WhatsApp Demo Follow-up Flow',
+                description:
+                    'Sends a WhatsApp message automatically when a lead is created.',
+                triggerEvent: 'lead.created',
+                conditions: [],
+                actions: [
+                    {
+                        type: 'send_whatsapp',
+                        params: {
+                            recipient: '{{phone}}',
+                            templateId: demoFollowupTemplate
+                                ? demoFollowupTemplate._id
+                                : null,
+                            body: demoFollowupTemplate
+                                ? demoFollowupTemplate.body
+                                : 'Hi {{leadName}}, thanks for joining.',
+                            templateName: demoFollowupTemplate
+                                ? demoFollowupTemplate.metaTemplateName ||
+                                  demoFollowupTemplate.name
+                                : 'workflow_alert'
                         }
-                    ],
-                    status: 'Active',
-                    createdBy: admin._id
-                }
-            ]);
-            console.log('✅ Phase 6 Automation Workflows seeded successfully.');
-        } else {
-            console.log('✅ Phase 6 Automation Workflows already exist.');
-        }
+                    }
+                ],
+                status: 'Active',
+                createdBy: admin._id
+            },
+            {
+                name: 'Task Done Notification Flow',
+                description:
+                    'Notifies team manager when a key task status changes to Completed.',
+                triggerEvent: 'task.completed',
+                conditions: [],
+                actions: [
+                    {
+                        type: 'send_notification',
+                        params: {
+                            title: 'Task Completed: {{title}}',
+                            message:
+                                'Task {{title}} was completed by {{assignedToName}}.'
+                        }
+                    }
+                ],
+                status: 'Active',
+                createdBy: admin._id
+            }
+        ]);
+        console.log('✅ Phase 6 Automation Workflows seeded successfully.');
 
         // 2. Seed automation cron jobs
         const jobsCount = await AutomationJob.countDocuments();

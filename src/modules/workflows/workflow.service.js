@@ -86,12 +86,35 @@ const executeAction = async (action, data, createdBy) => {
                 action.params.recipient,
                 data
             );
-            const subject = resolvePlaceholders(action.params.subject, data);
-            const html = resolvePlaceholders(
-                action.params.bodyHtml || action.params.body,
-                data
+            let subject = action.params.subject;
+            let body = action.params.bodyHtml || action.params.body;
+
+            if (action.params.templateId) {
+                try {
+                    const {
+                        EmailTemplate
+                    } = require('../communications/communication.model');
+                    const template = await EmailTemplate.findById(
+                        action.params.templateId
+                    );
+                    if (template) {
+                        subject = template.subject;
+                        body = template.body;
+                    }
+                } catch (err) {
+                    logger.error(
+                        `[Workflow Engine] Error loading EmailTemplate ${action.params.templateId}: ${err.message}`
+                    );
+                }
+            }
+
+            const resolvedSubject = resolvePlaceholders(subject, data);
+            const resolvedHtml = resolvePlaceholders(body, data);
+            await emailService.sendCustomEmail(
+                recipient,
+                resolvedSubject,
+                resolvedHtml
             );
-            await emailService.sendCustomEmail(recipient, subject, html);
             break;
         }
         case 'send_whatsapp': {
@@ -99,9 +122,32 @@ const executeAction = async (action, data, createdBy) => {
                 action.params.recipient,
                 data
             );
-            const body = resolvePlaceholders(action.params.body, data);
-            await whatsappService.sendWhatsAppMessage(recipient, body, {
-                templateName: action.params.templateName || 'workflow_alert',
+            let body = action.params.body;
+            let templateName = action.params.templateName || 'workflow_alert';
+
+            if (action.params.templateId) {
+                try {
+                    const {
+                        WhatsAppTemplate
+                    } = require('../communications/communication.model');
+                    const template = await WhatsAppTemplate.findById(
+                        action.params.templateId
+                    );
+                    if (template) {
+                        body = template.body;
+                        templateName =
+                            template.metaTemplateName || template.name;
+                    }
+                } catch (err) {
+                    logger.error(
+                        `[Workflow Engine] Error loading WhatsAppTemplate ${action.params.templateId}: ${err.message}`
+                    );
+                }
+            }
+
+            const resolvedBody = resolvePlaceholders(body, data);
+            await whatsappService.sendWhatsAppMessage(recipient, resolvedBody, {
+                templateName,
                 createdBy
             });
             break;
