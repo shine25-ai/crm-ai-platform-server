@@ -8,7 +8,37 @@ const Project = require('../../modules/projects/project.model');
 const logger = require('../utils/logger');
 
 // Orchestrate LLM calls or fallback to rules engine
-const generateAIResponse = async (prompt, systemInstruction = '') => {
+const generateAIResponse = async (
+    prompt,
+    systemInstruction = '',
+    useGroq = false
+) => {
+    // 0. Groq integration
+    if (useGroq && process.env.GROQ_API_KEY) {
+        try {
+            const response = await axios.post(
+                'https://api.groq.com/openai/v1/chat/completions',
+                {
+                    model: 'llama-3.1-8b-instant',
+                    messages: [
+                        { role: 'system', content: systemInstruction },
+                        { role: 'user', content: prompt }
+                    ]
+                },
+                {
+                    headers: {
+                        Authorization: `Bearer ${process.env.GROQ_API_KEY}`,
+                        'Content-Type': 'application/json'
+                    }
+                }
+            );
+            const text = response.data?.choices?.[0]?.message?.content;
+            if (text) return text;
+        } catch (err) {
+            logger.error(`Groq API call failed: ${err.message}`);
+        }
+    }
+
     // 1. Google Gemini integration
     if (process.env.GEMINI_API_KEY) {
         try {
@@ -139,7 +169,11 @@ const chat = async (userId, contextModule, relatedId, prompt) => {
     // Generate prompt with system context instructions
     const systemInstruction = `You are OptiFlow AI, an intelligent CRM assistant built on Node.js/React. You assist users with CRM workflows, details, summaries, and action steps. Context module is ${contextModule}${relatedId ? ` (Target ID: ${relatedId})` : ''}. Keep answers concise, clear, and formatted in markdown.`;
 
-    const aiResponse = await generateAIResponse(prompt, systemInstruction);
+    const aiResponse = await generateAIResponse(
+        prompt,
+        systemInstruction,
+        true
+    );
 
     // Append AI response
     conversation.history.push({ sender: 'ai', message: aiResponse });
