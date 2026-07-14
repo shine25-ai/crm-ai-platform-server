@@ -9,12 +9,10 @@ const chat = async (req, res, next) => {
     try {
         const { contextModule, relatedId, prompt } = req.body;
         if (!contextModule || !prompt) {
-            return res
-                .status(400)
-                .json({
-                    success: false,
-                    message: 'contextModule and prompt are required'
-                });
+            return res.status(400).json({
+                success: false,
+                message: 'contextModule and prompt are required'
+            });
         }
         const result = await aiService.chat(
             req.user.userId,
@@ -86,12 +84,10 @@ const generateReportSummary = async (req, res, next) => {
     try {
         const { reportType, reportData } = req.body;
         if (!reportType || !reportData) {
-            return res
-                .status(400)
-                .json({
-                    success: false,
-                    message: 'reportType and reportData are required'
-                });
+            return res.status(400).json({
+                success: false,
+                message: 'reportType and reportData are required'
+            });
         }
         const result = await aiService.generateReportSummary(
             req.user.userId,
@@ -108,12 +104,10 @@ const generateFollowupSuggestions = async (req, res, next) => {
     try {
         const { moduleType, entityId } = req.body;
         if (!moduleType || !entityId) {
-            return res
-                .status(400)
-                .json({
-                    success: false,
-                    message: 'moduleType and entityId are required'
-                });
+            return res.status(400).json({
+                success: false,
+                message: 'moduleType and entityId are required'
+            });
         }
         const result = await aiService.generateFollowupSuggestions(
             req.user.userId,
