@@ -166,8 +166,52 @@ const chat = async (userId, contextModule, relatedId, prompt) => {
     // Append user message
     conversation.history.push({ sender: 'user', message: prompt });
 
-    // Generate prompt with system context instructions
-    const systemInstruction = `You are OptiFlow AI, an intelligent CRM assistant built on Node.js/React. You assist users with CRM workflows, details, summaries, and action steps. Context module is ${contextModule}${relatedId ? ` (Target ID: ${relatedId})` : ''}. Keep answers concise, clear, and formatted in markdown.`;
+    // ── Fetch real DB data to ground the AI response ──
+    let liveDataContext = '';
+    try {
+        const Employee = require('../../modules/employees/employee.model');
+        const employeeCount = await Employee.countDocuments({ isActive: true });
+        const totalEmployees = await Employee.countDocuments();
+
+        const leadCount = await Lead.countDocuments();
+        const taskCount = await Task.countDocuments();
+        const projectCount = await Project.countDocuments();
+        const customerCount = await Customer.countDocuments();
+
+        // Fetch a few recent employees for name/dept context if asked
+        const recentEmployees = await Employee.find({ isActive: true })
+            .select('firstName lastName department designation')
+            .limit(20)
+            .lean();
+
+        const employeeList = recentEmployees
+            .map(
+                (e) =>
+                    `${e.firstName} ${e.lastName} (${e.department || 'N/A'} - ${e.designation || 'N/A'})`
+            )
+            .join(', ');
+
+        liveDataContext = `
+LIVE DATABASE SNAPSHOT (use ONLY these real numbers — do NOT guess or use any other figures):
+- Total Employees in system: ${totalEmployees} (Active: ${employeeCount})
+- Employee names/departments: ${employeeList || 'None'}
+- Total Leads: ${leadCount}
+- Total Customers: ${customerCount}
+- Total Tasks: ${taskCount}
+- Total Projects: ${projectCount}
+- Current Context Module: ${contextModule}${relatedId ? ` (Entity ID: ${relatedId})` : ''}
+`;
+    } catch (err) {
+        logger.error(`Failed to fetch live DB context: ${err.message}`);
+        liveDataContext = `Context Module: ${contextModule}${relatedId ? ` (Entity ID: ${relatedId})` : ''}`;
+    }
+
+    // Generate prompt with system context instructions + real data
+    const systemInstruction = `You are OptiFlow AI, an intelligent CRM assistant. You MUST answer ONLY using the live database data provided below. NEVER guess, estimate, or make up numbers. If the data is not in the snapshot, say you don't have that information.
+
+${liveDataContext}
+
+Keep answers concise, clear, and formatted in markdown.`;
 
     const aiResponse = await generateAIResponse(
         prompt,
