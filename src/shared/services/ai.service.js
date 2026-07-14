@@ -170,7 +170,9 @@ const chat = async (userId, contextModule, relatedId, prompt) => {
     let liveDataContext = '';
     try {
         const Employee = require('../../modules/employees/employee.model');
-        const employeeCount = await Employee.countDocuments({ isActive: true });
+        const employeeCount = await Employee.countDocuments({
+            status: 'Active'
+        });
         const totalEmployees = await Employee.countDocuments();
 
         const leadCount = await Lead.countDocuments();
@@ -179,15 +181,15 @@ const chat = async (userId, contextModule, relatedId, prompt) => {
         const customerCount = await Customer.countDocuments();
 
         // Fetch a few recent employees for name/dept context if asked
-        const recentEmployees = await Employee.find({ isActive: true })
-            .select('firstName lastName department designation')
+        const recentEmployees = await Employee.find({ status: 'Active' })
+            .select('name department designation')
             .limit(20)
             .lean();
 
         const employeeList = recentEmployees
             .map(
                 (e) =>
-                    `${e.firstName} ${e.lastName} (${e.department || 'N/A'} - ${e.designation || 'N/A'})`
+                    `${e.name} (${e.department || 'N/A'} - ${e.designation || 'N/A'})`
             )
             .join(', ');
 
