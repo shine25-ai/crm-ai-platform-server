@@ -14,6 +14,18 @@ const userSchema = new mongoose.Schema(
             ref: 'Role',
             required: true
         },
+        tenantId: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'Company',
+            default: null,
+            index: true
+        },
+        companyId: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'Company',
+            default: null,
+            index: true
+        },
         // Link to Employee record (set during onboarding, null for admin users)
         employeeId: {
             type: mongoose.Schema.Types.ObjectId,

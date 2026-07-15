@@ -1,4 +1,6 @@
 const jwt = require('jsonwebtoken');
+const { attachTenantContext } = require('./tenant.middleware');
+const { enforcePlanAccess } = require('./planFeature.middleware');
 
 module.exports = (req, res, next) => {
     try {
@@ -16,7 +18,10 @@ module.exports = (req, res, next) => {
 
         req.user = decoded;
 
-        next();
+        return attachTenantContext(req, res, (tenantError) => {
+            if (tenantError) return next(tenantError);
+            return enforcePlanAccess(req, res, next);
+        });
     } catch (error) {
         return res.status(401).json({
             success: false,

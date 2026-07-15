@@ -1,10 +1,14 @@
 const express = require('express');
+const mongoose = require('mongoose');
 const cors = require('cors');
 const helmet = require('helmet');
 const morgan = require('morgan');
 const path = require('path');
+const tenantScopePlugin = require('./shared/plugins/tenantScope.plugin');
 const { swaggerUi, swaggerSpec } = require('./config/swagger');
 const errorMiddleware = require('./shared/middleware/error.middleware');
+
+mongoose.plugin(tenantScopePlugin);
 
 const authRoutes = require('./modules/auth/auth.routes');
 const roleRoutes = require('./modules/roles/role.routes');
@@ -42,10 +46,19 @@ const timesheetRoutes = require('./modules/timesheets/timesheet.routes');
 const documentRoutes = require('./modules/documents/document.routes');
 const issueRoutes = require('./modules/issues/issue.routes');
 const gpsTrackingRoutes = require('./modules/gpsTracking/gpsTracking.routes');
+const saasRoutes = require('./modules/saas/saas.routes');
 
 const app = express();
 
-app.use(express.json());
+app.use(
+    express.json({
+        verify: (req, res, buffer) => {
+            if (req.originalUrl?.startsWith('/api/saas/webhooks')) {
+                req.rawBody = buffer.toString('utf8');
+            }
+        }
+    })
+);
 app.use(cors());
 app.use(
     helmet({
@@ -93,6 +106,7 @@ app.use('/api/billing', billingRoutes);
 app.use('/api/timesheets', timesheetRoutes);
 app.use('/api/documents', documentRoutes);
 app.use('/api/issues', issueRoutes);
+app.use('/api/saas', saasRoutes);
 app.use('/api/gps-tracking', gpsTrackingRoutes);
 
 app.use('/api/chat', chatRoutes);

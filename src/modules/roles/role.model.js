@@ -15,6 +15,20 @@ const roleSchema = new mongoose.Schema(
 
         description: String,
 
+        tenantId: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'Company',
+            default: null,
+            index: true
+        },
+
+        companyId: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'Company',
+            default: null,
+            index: true
+        },
+
         permissions: [
             {
                 type: String

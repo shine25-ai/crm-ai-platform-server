@@ -5,6 +5,7 @@ const User = require('../users/user.model');
 const Role = require('../roles/role.model');
 const RolePermission = require('../permissions/rolePermission.model');
 const Employee = require('../employees/employee.model');
+const { Company, Subscription } = require('../saas/saas.model');
 const AppError = require('../../shared/utils/appError');
 const { generateToken } = require('../../shared/utils/jwt');
 const emailService = require('../../shared/services/email.service');
@@ -204,12 +205,55 @@ const verifyIdToken = async (provider, idToken, runtimeConfig) => {
     return payload;
 };
 
-const buildAuthResult = async (user) => {
+const ensureTenantForUser = async (user) => {
+    if (user.roleId.roleCode === 'SUPER_ADMIN') return user;
+    if (user.tenantId || user.companyId) return user;
+
+    let company = await Company.findOne({ domain: 'default.local' });
+    if (!company) {
+        company = await Company.create({
+            companyName: 'Default CRM Tenant',
+            legalName: 'Default CRM Tenant',
+            domain: 'default.local',
+            subdomain: 'default',
+            status: 'active',
+            timezone: 'Asia/Calcutta',
+            locale: 'en-IN',
+            currency: 'INR'
+        });
+    }
+
+    user.tenantId = company._id;
+    user.companyId = company._id;
+    await user.save();
+    return user;
+};
+
+const buildAuthResult = async (authUser) => {
+    const user = await ensureTenantForUser(authUser);
+    const subscription =
+        user.roleId.roleCode === 'SUPER_ADMIN'
+            ? null
+            : await Subscription.findOne({
+                  companyId: user.companyId || user.tenantId,
+                  status: { $in: ['trialing', 'active', 'past_due'] }
+              })
+                  .sort({ createdAt: -1 })
+                  .populate('planId');
+    const company =
+        user.roleId.roleCode === 'SUPER_ADMIN'
+            ? null
+            : await Company.findById(user.companyId || user.tenantId).select(
+                  'companyName featureSettings'
+              );
     const token = generateToken({
         userId: user._id,
         roleId: user.roleId._id,
         roleCode: user.roleId.roleCode,
-        employeeId: user.employeeId || null
+        employeeId: user.employeeId || null,
+        tenantId: user.tenantId || user.companyId || null,
+        companyId: user.companyId || user.tenantId || null,
+        isPlatformSuperAdmin: user.roleId.roleCode === 'SUPER_ADMIN'
     });
 
     const permissions = await getRolePermissions(user.roleId);
@@ -223,7 +267,31 @@ const buildAuthResult = async (user) => {
             roleCode: user.roleId.roleCode,
             roleName: user.roleId.roleName,
             permissions,
-            employeeId: user.employeeId || null
+            employeeId: user.employeeId || null,
+            tenantId: user.tenantId || user.companyId || null,
+            companyId: user.companyId || user.tenantId || null,
+            company: company
+                ? {
+                      _id: company._id,
+                      companyName: company.companyName
+                  }
+                : null,
+            featureSettings: company?.featureSettings || {},
+            isPlatformSuperAdmin: user.roleId.roleCode === 'SUPER_ADMIN',
+            subscription: subscription
+                ? {
+                      status: subscription.status,
+                      currentPeriodEnd: subscription.currentPeriodEnd
+                  }
+                : null,
+            plan: subscription?.planId
+                ? {
+                      _id: subscription.planId._id,
+                      name: subscription.planId.name,
+                      featureFlags: subscription.planId.featureFlags || {},
+                      usageLimits: subscription.planId.usageLimits || {}
+                  }
+                : null
         }
     };
 };
@@ -343,27 +411,7 @@ const login = async (email, password) => {
         );
     }
 
-    const token = generateToken({
-        userId: user._id,
-        roleId: user.roleId._id,
-        roleCode: user.roleId.roleCode,
-        employeeId: user.employeeId || null
-    });
-
-    const permissions = await getRolePermissions(user.roleId);
-
-    return {
-        token,
-        user: {
-            _id: user._id,
-            name: user.name,
-            email: user.email,
-            roleCode: user.roleId.roleCode,
-            roleName: user.roleId.roleName,
-            permissions,
-            employeeId: user.employeeId || null
-        }
-    };
+    return buildAuthResult(user);
 };
 
 const forgotPassword = async (email) => {

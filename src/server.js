@@ -26,6 +26,9 @@ const seedShiftAssignments = require('./seeders/shiftAssignmentSeeder.js');
 const seedProjectActivities = require('./seeders/projectActivitySeeder.js');
 const seedExpenseClaims = require('./seeders/expenseClaimSeeder.js');
 const seedAssets = require('./seeders/assetSeeder.js');
+const seedPhase7 = require('./seeders/phase7Seeder.js');
+const seedDemoTenants = require('./seeders/demoTenantSeeder.js');
+const addDefaultTenant = require('./migrations/addDefaultTenant.js');
 const {
     scheduleTaskDeadlineReminders
 } = require('./shared/services/taskDeadline.cron');
@@ -63,6 +66,9 @@ const startServer = async () => {
         await seedProjectActivities();
         await seedExpenseClaims();
         await seedAssets();
+        await seedPhase7();
+        await seedDemoTenants();
+        await addDefaultTenant({ disconnect: false });
 
         // await seedDepartmentsAndEmployees();
 
