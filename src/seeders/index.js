@@ -15,6 +15,7 @@ const seedAssets = require('./assetSeeder');
 const seedPhase5 = require('./phase5Seeder');
 const seedExpenseClaims = require('./expenseClaimSeeder');
 const seedGpsTracking = require('./gpsTrackingSeeder');
+const seedPhase6 = require('./automationPhase6Seeder');
 
 const runSeeders = async () => {
     try {
@@ -38,6 +39,7 @@ const runSeeders = async () => {
         await seedAssets();
         await seedPhase5();
         await seedGpsTracking();
+        await seedPhase6();
 
         console.log('🎉 Database seeding complete!');
         process.exit(0);
