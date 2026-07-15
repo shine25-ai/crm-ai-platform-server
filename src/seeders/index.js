@@ -21,6 +21,7 @@ const seedGpsTracking = require('./gpsTrackingSeeder');
 const seedPhase7 = require('./phase7Seeder');
 const addDefaultTenant = require('../migrations/addDefaultTenant');
 const seedDemoTenants = require('./demoTenantSeeder');
+const seedPhase6 = require('./automationPhase6Seeder');
 
 const runSeeders = async () => {
     try {
@@ -47,6 +48,7 @@ const runSeeders = async () => {
         await seedDemoTenants();
         await seedGpsTracking();
         await addDefaultTenant({ disconnect: false });
+        await seedPhase6();
 
         console.log('🎉 Database seeding complete!');
         process.exit(0);

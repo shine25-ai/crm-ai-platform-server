@@ -18,4 +18,10 @@ router.get(
     analyticsController.getSalesAnalytics
 );
 
+router.get(
+    '/modules',
+    authorize('reports:read'),
+    analyticsController.getModulesAnalytics
+);
+
 module.exports = router;

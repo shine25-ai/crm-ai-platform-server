@@ -556,10 +556,30 @@ const sendAccountActivationEmail = async (
     }
 };
 
+/**
+ * Sends a custom general email
+ */
+const sendCustomEmail = async (to, subject, bodyHtml) => {
+    assertSmtpConfig();
+    const transporter = createTransporter();
+    const mailOptions = {
+        from: getSender(),
+        to,
+        subject,
+        html: bodyHtml
+    };
+    const info = await transporter.sendMail(mailOptions);
+    logger.info(
+        `[Email Service] Custom email sent to ${to}. Message ID: ${info.messageId}`
+    );
+    return true;
+};
+
 module.exports = {
     verifySmtpConnection,
     sendPasswordResetEmail,
     sendOnboardingEmail,
     sendOnboardingCompletionNotification,
-    sendAccountActivationEmail
+    sendAccountActivationEmail,
+    sendCustomEmail
 };

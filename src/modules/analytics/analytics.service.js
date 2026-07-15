@@ -4,6 +4,8 @@ const Task = require('../tasks/task.model');
 const User = require('../users/user.model');
 const ActivityLog = require('../activityLogs/activityLog.model');
 const Customer = require('../customers/customer.model');
+const Timesheet = require('../timesheets/timesheet.model');
+const Issue = require('../issues/issue.model');
 const {
     SalesOpportunity,
     SalesQuotation,
@@ -563,3 +565,73 @@ const getSalesAnalytics = async (filters = {}) => {
 };
 
 module.exports = { getDashboardSummary, getSalesAnalytics };
+
+const getModulesAnalytics = async () => {
+    // 1. Fetch sales/billing/payments summaries
+    const wonOpportunities = await SalesOpportunity.find({ status: 'Won' });
+    const totalSales = wonOpportunities.reduce(
+        (sum, item) => sum + toNumber(item.dealValue),
+        0
+    );
+    const totalOpportunities = await SalesOpportunity.countDocuments();
+
+    // 2. Fetch Timesheets metrics
+    const timesheets = await Timesheet.find({});
+    const totalHours = timesheets.reduce(
+        (sum, item) => sum + toNumber(item.totalHours || item.hours),
+        0
+    );
+    const billableHours = timesheets
+        .filter((t) => t.isBillable || t.billable)
+        .reduce(
+            (sum, item) => sum + toNumber(item.totalHours || item.hours),
+            0
+        );
+
+    // 3. Fetch Tasks metrics
+    const tasksCount = await Task.countDocuments();
+    const completedTasks = await Task.countDocuments({ status: 'Completed' });
+    const openTasks = await Task.countDocuments({
+        status: { $ne: 'Completed' }
+    });
+
+    // 4. Fetch Issues metrics
+    const issuesCount = await Issue.countDocuments();
+    const criticalIssues = await Issue.countDocuments({ severity: 'Critical' });
+    const closedIssues = await Issue.countDocuments({ status: 'Closed' });
+
+    // 5. Fetch Resources metrics
+    const employeesCount = await Employee.countDocuments({ status: 'Active' });
+
+    return {
+        sales: {
+            totalSales,
+            totalOpportunities,
+            wonDeals: wonOpportunities.length
+        },
+        timesheets: {
+            totalHours,
+            billableHours,
+            nonBillableHours: totalHours - billableHours
+        },
+        tasks: {
+            totalTasks: tasksCount,
+            completedTasks,
+            openTasks
+        },
+        issues: {
+            totalIssues: issuesCount,
+            criticalIssues,
+            closedIssues
+        },
+        resources: {
+            totalResources: employeesCount
+        }
+    };
+};
+
+module.exports = {
+    getDashboardSummary,
+    getSalesAnalytics,
+    getModulesAnalytics
+};

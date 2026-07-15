@@ -47,6 +47,9 @@ const documentRoutes = require('./modules/documents/document.routes');
 const issueRoutes = require('./modules/issues/issue.routes');
 const gpsTrackingRoutes = require('./modules/gpsTracking/gpsTracking.routes');
 const saasRoutes = require('./modules/saas/saas.routes');
+const aiRoutes = require('./modules/ai/ai.routes');
+const workflowRoutes = require('./modules/workflows/workflow.routes');
+const automationRoutes = require('./modules/automations/automation.routes');
 
 const app = express();
 
@@ -108,6 +111,9 @@ app.use('/api/documents', documentRoutes);
 app.use('/api/issues', issueRoutes);
 app.use('/api/saas', saasRoutes);
 app.use('/api/gps-tracking', gpsTrackingRoutes);
+app.use('/api/ai', aiRoutes);
+app.use('/api/workflows', workflowRoutes);
+app.use('/api/automations', automationRoutes);
 
 app.use('/api/chat', chatRoutes);
 

@@ -245,6 +245,11 @@ const createTask = async (data, user) => {
         'Tasks',
         `Created task "${task.title}"`
     );
+
+    // Trigger workflow engine
+    const workflowService = require('../workflows/workflow.service');
+    workflowService.trigger('task.created', task.toObject());
+
     return populateTask(Task.findById(task._id));
 };
 
@@ -363,6 +368,16 @@ const updateTask = async (id, data, user) => {
         'Tasks',
         `Updated task "${task.title}"`
     );
+
+    // Trigger workflow engine
+    const workflowService = require('../workflows/workflow.service');
+    if (data.status && data.status !== previousStatus) {
+        workflowService.trigger('task.status.changed', task.toObject());
+    }
+    if (task.status === 'Completed' && previousStatus !== 'Completed') {
+        workflowService.trigger('task.completed', task.toObject());
+    }
+
     return populateTask(Task.findById(task._id));
 };
 
