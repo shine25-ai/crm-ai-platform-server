@@ -144,21 +144,22 @@ const generateAIResponse = async (
  * Handles core user chat conversation and history logging
  */
 const chat = async (userId, contextModule, relatedId, prompt) => {
-    let conversation = null;
+    const targetRelatedId =
+        relatedId && relatedId !== 'null' && relatedId !== 'undefined'
+            ? relatedId
+            : null;
 
-    if (relatedId) {
-        conversation = await AIConversation.findOne({
-            userId,
-            contextModule,
-            relatedId
-        });
-    }
+    conversation = await AIConversation.findOne({
+        userId,
+        contextModule,
+        relatedId: targetRelatedId
+    });
 
     if (!conversation) {
         conversation = new AIConversation({
             userId,
             contextModule,
-            relatedId: relatedId || null,
+            relatedId: targetRelatedId,
             history: []
         });
     }
